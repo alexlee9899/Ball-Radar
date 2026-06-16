@@ -1,0 +1,59 @@
+name: ball-radar
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hoop
+      POSTGRES_PASSWORD: hoop
+      POSTGRES_DB: ballradar
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hoop -d ballradar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgres://hoop:hoop@db:5432/ballradar
+      EMAIL_MODE: ${EMAIL_MODE:-dev}
+      JWT_SECRET: ${JWT_SECRET:-ballradar-dev-secret-change-me}
+      # Real email sending (Resend SMTP):
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+    volumes:
+      - ./backend:/app                          # source hot-reload
+      - backend_node_modules:/app/node_modules  # keep container deps, don't let host shadow them
+      - backend_uploads:/app/uploads            # persist uploaded images
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+      BACKEND_URL: http://backend:4000
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+  backend_node_modules:
+  backend_uploads:
+  frontend_node_modules:

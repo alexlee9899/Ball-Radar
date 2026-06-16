@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# vite temp config files
+*.timestamp-*.mjs
+
+# env / secrets — NEVER commit real keys
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# markdown docs (excluded per project preference)
+*.md
+
+# backend runtime data
+backend/data/
+backend/uploads/
+
+# logs
+*.log
+npm-debug.log*
+
+# orphaned FUSE temp files
+.fuse_hidden*
+
+# os
+.DS_Store
+Thumbs.db
