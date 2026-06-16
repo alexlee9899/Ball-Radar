@@ -1,6 +1,14 @@
 // Lightweight API client. Token kept in localStorage.
+// API_BASE is empty for local dev (Vite proxies /api + /uploads to the backend),
+// and set to the backend's public URL when frontend & backend are separate services.
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const TOKEN_KEY = 'ballradar_token';
 const USER_KEY = 'ballradar_user';
+
+// Build an absolute URL for a backend asset (e.g. an uploaded photo at /uploads/..).
+export function assetUrl(path) {
+  return API_BASE + path;
+}
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -27,7 +35,7 @@ async function request(path, { method = 'GET', body, formData } = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(path, {
+  const res = await fetch(API_BASE + path, {
     method,
     headers,
     body: formData ? formData : body ? JSON.stringify(body) : undefined,

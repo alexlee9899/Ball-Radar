@@ -1,4 +1,4 @@
-# Ball Radar backend — dev image (used by docker-compose).
+# Ball Radar backend — API service (works on Railway and via docker-compose).
 # pg is pure JS, so no native build toolchain is needed.
 FROM node:22-bookworm-slim
 
@@ -13,5 +13,6 @@ COPY . .
 
 EXPOSE 4000
 
-# Schema init + seed happen automatically on boot (see src/index.js)
-CMD ["npm", "run", "dev"]
+# Production start. docker-compose overrides this with `npm run dev` for hot reload.
+# Schema init + seed happen automatically on boot (see src/index.js).
+CMD ["npm", "start"]

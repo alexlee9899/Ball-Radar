@@ -14,7 +14,11 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.set('trust proxy', 1); // correct client IP behind a proxy (rate limiting)
-app.use(cors());
+// CORS: allow all by default; set CORS_ORIGIN (comma-separated) to lock to your frontend domain(s).
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim())
+  : true;
+app.use(cors({ origin: corsOrigins }));
 app.use(express.json());
 app.use('/uploads', express.static(uploadsDir));
 

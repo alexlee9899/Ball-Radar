@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
-import { api, getUser, getToken, setSession, clearSession } from './api.js';
+import { api, assetUrl, getUser, getToken, setSession, clearSession } from './api.js';
 
 const SYDNEY_CENTER = { lat: -33.8688, lng: 151.2093 };
 const SYDNEY_BOUNDS = { north: -33.3, south: -34.4, east: 151.7, west: 150.4 };
@@ -557,7 +557,7 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, req
             <div className="photos">
               {data.photos.map((p) => (
                 <div key={p.id} className="photo">
-                  <a href={p.url} target="_blank" rel="noreferrer"><img src={p.url} alt="Court" loading="lazy" /></a>
+                  <a href={assetUrl(p.url)} target="_blank" rel="noreferrer"><img src={assetUrl(p.url)} alt="Court" loading="lazy" /></a>
                   {canDeletePhoto(p) && <button className="photo__del" title="Delete" onClick={() => deletePhoto(p.id)}>✕</button>}
                 </div>
               ))}

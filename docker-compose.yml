@@ -19,6 +19,7 @@ services:
 
   backend:
     build: ./backend
+    command: npm run dev          # hot-reload for local dev (image default is `npm start`)
     ports:
       - "4000:4000"
     environment:
