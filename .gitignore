@@ -14,8 +14,9 @@ dist/
 backend/.env
 frontend/.env
 
-# markdown docs (excluded per project preference)
+# markdown docs excluded — except the README
 *.md
+!README.md
 
 # backend runtime data
 backend/data/
