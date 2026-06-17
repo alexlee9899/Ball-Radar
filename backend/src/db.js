@@ -84,6 +84,11 @@ export async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    -- Photo bytes live in the DB so uploads are shared across dev + prod
+    -- (and survive Railway redeploys). Existing rows keep data = NULL.
+    ALTER TABLE photos ADD COLUMN IF NOT EXISTS data BYTEA;
+    ALTER TABLE photos ADD COLUMN IF NOT EXISTS mime TEXT;
+
     -- amenities (added to existing courts table on boot)
     ALTER TABLE courts ADD COLUMN IF NOT EXISTS water    BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE courts ADD COLUMN IF NOT EXISTS toilets  BOOLEAN NOT NULL DEFAULT FALSE;

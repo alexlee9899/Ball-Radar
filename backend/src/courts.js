@@ -11,21 +11,36 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads');
 fs.mkdirSync(uploadsDir, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: uploadsDir,
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, `court_${Date.now()}_${Math.round(Math.random() * 1e6)}${ext}`);
-  },
-});
+// Photos are stored as bytes in Postgres (shared across dev + prod), so we keep the
+// uploaded file in memory and write the buffer to the DB instead of to disk.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (/^image\/(jpe?g|png|webp|gif)$/.test(file.mimetype)) cb(null, true);
     else cb(new Error('Only image formats jpg/png/webp/gif are supported'));
   },
 });
+
+// Unique, safe stored name — also the DB lookup key and the public URL segment.
+function makeFilename(originalname) {
+  const ext = path.extname(originalname).toLowerCase() || '.jpg';
+  return `court_${Date.now()}_${Math.round(Math.random() * 1e6)}${ext}`;
+}
+
+// Serve a photo's bytes straight from the DB. Falls through (next) to the static-disk
+// handler in index.js for any legacy files uploaded before DB storage.
+export async function servePhoto(req, res, next) {
+  try {
+    const row = await one('SELECT data, mime FROM photos WHERE filename=$1', [req.params.filename]);
+    if (!row || !row.data) return next();
+    res.setHeader('Content-Type', row.mime || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(row.data);
+  } catch (err) {
+    next(err);
+  }
+}
 
 const router = Router();
 
@@ -204,15 +219,16 @@ router.delete('/:id/reviews', requireAuth, async (req, res) => {
   res.json({ message: 'Review deleted' });
 });
 
-// POST /api/courts/:id/photos — upload photo (auth)
+// POST /api/courts/:id/photos — upload photo (auth). Bytes are stored in the DB.
 router.post('/:id/photos', requireAuth, upload.single('photo'), async (req, res) => {
   const court = await one('SELECT id FROM courts WHERE id=$1', [req.params.id]);
   if (!court) return res.status(404).json({ error: 'Court not found' });
   if (!req.file) return res.status(400).json({ error: 'Missing image file (field name: photo)' });
 
-  await run('INSERT INTO photos (court_id, user_id, filename) VALUES ($1,$2,$3)',
-    [court.id, req.user.id, req.file.filename]);
-  res.status(201).json({ url: `/uploads/${req.file.filename}` });
+  const filename = makeFilename(req.file.originalname);
+  await run('INSERT INTO photos (court_id, user_id, filename, data, mime) VALUES ($1,$2,$3,$4,$5)',
+    [court.id, req.user.id, filename, req.file.buffer, req.file.mimetype]);
+  res.status(201).json({ url: `/uploads/${filename}` });
 });
 
 // DELETE /api/courts/:id/photos/:photoId — delete a photo (auth, uploader or court creator)

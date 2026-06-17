@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: hoop
       POSTGRES_DB: ballradar
     ports:
-      - "5432:5432"
+      # host:container — 5433 on the host to avoid clashing with a local Postgres on 5432.
+      # The backend still connects internally via db:5432, so this only affects host access.
+      - "5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:

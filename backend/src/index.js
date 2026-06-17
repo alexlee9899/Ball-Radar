@@ -6,9 +6,9 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import authRouter from './auth.js';
-import courtsRouter, { uploadsDir } from './courts.js';
+import courtsRouter, { uploadsDir, servePhoto } from './courts.js';
 import usersRouter from './users.js';
-import { seedCourts } from './seed.js';
+import { initDb } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -21,7 +21,8 @@ const corsOrigins = process.env.CORS_ORIGIN
   : true;
 app.use(cors({ origin: corsOrigins }));
 app.use(express.json());
-app.use('/uploads', express.static(uploadsDir));
+app.get('/uploads/:filename', servePhoto);        // photo bytes from the DB (shared dev+prod)
+app.use('/uploads', express.static(uploadsDir));  // legacy on-disk fallback
 
 // Rate limiting on auth endpoints (anti brute-force / code spamming)
 const authLimiter = rateLimit({
@@ -54,8 +55,9 @@ app.use((err, _req, res, _next) => {
   res.status(400).json({ error: err.message || 'Request failed' });
 });
 
-// Ensure schema exists (+ seed on first boot) before accepting traffic.
-seedCourts()
+// Ensure schema exists before accepting traffic. Seed data is NOT auto-inserted
+// anymore (prod already has it); bootstrap an empty DB manually with `npm run seed`.
+initDb()
   .catch((err) => console.error('Database init failed:', err))
   .finally(() => {
     app.listen(PORT, () => {
