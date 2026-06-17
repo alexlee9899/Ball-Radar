@@ -604,7 +604,7 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, req
 function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc }) {
   const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
   const list = useMemo(() => {
-    let arr = courts.filter((c) => {
+    let arr = (courts || []).filter((c) => {
       if (filters.q && !(`${c.name} ${c.address}`.toLowerCase().includes(filters.q.toLowerCase()))) return false;
       if (filters.type === 'indoor' && !c.indoor) return false;
       if (filters.type === 'outdoor' && c.indoor) return false;
@@ -681,7 +681,7 @@ export default function App() {
   const [editCourt, setEditCourt] = useState(null);
   const [userLoc, setUserLoc] = useState(null);
   const [toast, setToast] = useState(null);
-  const [theme, setTheme] = useState(() => localStorage.getItem('ballradar_theme') || 'night');
+  const [theme, setTheme] = useState(() => localStorage.getItem('ballradar_theme') || 'day');
 
   // apply + persist theme
   useEffect(() => {
@@ -702,8 +702,13 @@ export default function App() {
   }, []);
 
   const loadCourts = useCallback(async () => {
-    try { const { courts } = await api.courts(); setCourts(courts); }
-    catch (err) { notify('error', 'Failed to load courts: ' + err.message); }
+    try {
+      const data = await api.courts();
+      setCourts(Array.isArray(data?.courts) ? data.courts : []);
+    } catch (err) {
+      setCourts([]);
+      notify('error', 'Failed to load courts: ' + err.message);
+    }
   }, [notify]);
 
   useEffect(() => { loadCourts(); }, [loadCourts]);
