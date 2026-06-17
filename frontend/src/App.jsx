@@ -48,7 +48,7 @@ let _loaderPromise = null;
 function loadGoogle() {
   if (!GMAPS_KEY) return Promise.reject(new Error('NO_KEY'));
   if (!_loaderPromise) {
-    _loaderPromise = new Loader({ apiKey: GMAPS_KEY, version: 'weekly' }).load();
+    _loaderPromise = new Loader({ apiKey: GMAPS_KEY, version: 'weekly', libraries: ['places'] }).load();
   }
   return _loaderPromise;
 }
@@ -60,6 +60,48 @@ async function geocodeAddress(address) {
   if (!results?.length) throw new Error('Address not found');
   const loc = results[0].geometry.location;
   return { lat: loc.lat(), lng: loc.lng(), formatted: results[0].formatted_address };
+}
+
+// ---- Google Places (Autocomplete) ----
+let _autoSvc = null, _placesSvc = null, _placesToken = null;
+async function ensurePlaces() {
+  const google = await loadGoogle();
+  if (!_autoSvc) _autoSvc = new google.maps.places.AutocompleteService();
+  if (!_placesSvc) _placesSvc = new google.maps.places.PlacesService(document.createElement('div'));
+  if (!_placesToken) _placesToken = new google.maps.places.AutocompleteSessionToken();
+  return google;
+}
+async function placePredictions(input) {
+  const google = await ensurePlaces();
+  const bounds = new google.maps.LatLngBounds(
+    { lat: SYDNEY_BOUNDS.south, lng: SYDNEY_BOUNDS.west },
+    { lat: SYDNEY_BOUNDS.north, lng: SYDNEY_BOUNDS.east }
+  );
+  return new Promise((resolve) => {
+    _autoSvc.getPlacePredictions(
+      { input, bounds, componentRestrictions: { country: 'au' }, sessionToken: _placesToken },
+      (preds, status) => resolve(status === 'OK' && preds ? preds : [])
+    );
+  });
+}
+async function placeDetails(placeId) {
+  await ensurePlaces();
+  return new Promise((resolve, reject) => {
+    _placesSvc.getDetails(
+      { placeId, fields: ['name', 'formatted_address', 'geometry'], sessionToken: _placesToken },
+      (place, status) => {
+        _placesToken = null; // close the billing session after a details lookup
+        if (status === 'OK' && place?.geometry) {
+          resolve({
+            name: place.name || '',
+            address: place.formatted_address || '',
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+          });
+        } else reject(new Error('Could not load that place'));
+      }
+    );
+  });
 }
 
 function haversineKm(a, b) {
@@ -370,8 +412,55 @@ function AuthModal({ onClose, onAuthed, notify }) {
   );
 }
 
+// ---------- Place search (Google Places Autocomplete) ----------
+function PlaceSearch({ onPick, notify }) {
+  const [q, setQ] = useState('');
+  const [preds, setPreds] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const tRef = useRef();
+
+  function onChange(e) {
+    const v = e.target.value;
+    setQ(v);
+    clearTimeout(tRef.current);
+    if (v.trim().length < 3) { setPreds([]); setOpen(false); return; }
+    tRef.current = setTimeout(async () => {
+      try {
+        const p = await placePredictions(v);
+        setPreds(p); setOpen(true);
+      } catch (err) {
+        notify('error', err.message === 'NO_KEY' ? 'Map key not configured' : 'Place search failed');
+      }
+    }, 250);
+  }
+  async function choose(pred) {
+    setOpen(false); setQ(pred.description); setBusy(true);
+    try { onPick(await placeDetails(pred.place_id)); }
+    catch (err) { notify('error', err.message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="placesearch">
+      <input value={q} onChange={onChange} onFocus={() => preds.length && setOpen(true)}
+        placeholder="🔍 Search a place on Google Maps…" autoComplete="off" />
+      {busy && <span className="placesearch__busy">…</span>}
+      {open && preds.length > 0 && (
+        <ul className="placesearch__list">
+          {preds.map((p) => (
+            <li key={p.place_id} onMouseDown={() => choose(p)}>
+              <b>{p.structured_formatting?.main_text || p.description}</b>
+              <span>{p.structured_formatting?.secondary_text || ''}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ---------- Court form modal (add + edit) ----------
-function CourtFormModal({ initial, pos, onClose, onSaved, notify }) {
+function CourtFormModal({ initial, pos, onClose, onSaved, onPickOnMap, notify }) {
   const editing = !!initial;
   const [form, setForm] = useState({
     name: initial?.name || '',
@@ -392,19 +481,12 @@ function CourtFormModal({ initial, pos, onClose, onSaved, notify }) {
     editing ? { lat: initial.lat, lng: initial.lng } : pos
   );
   const [busy, setBusy] = useState(false);
-  const [geoBusy, setGeoBusy] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  async function locate() {
-    if (!form.address.trim()) return notify('error', 'Please enter an address first');
-    setGeoBusy(true);
-    try {
-      const r = await geocodeAddress(form.address);
-      setCoords({ lat: r.lat, lng: r.lng });
-      notify('success', 'Located by address: ' + r.formatted);
-    } catch (err) {
-      notify('error', err.message === 'NO_KEY' ? 'No map key configured, cannot locate by address' : ('Locate failed: ' + err.message));
-    } finally { setGeoBusy(false); }
+  function handlePlace(place) {
+    setForm((f) => ({ ...f, name: f.name || place.name, address: place.address || f.address }));
+    setCoords({ lat: place.lat, lng: place.lng });
+    notify('success', 'Location set from Google Maps');
   }
 
   async function submit(e) {
@@ -428,15 +510,19 @@ function CourtFormModal({ initial, pos, onClose, onSaved, notify }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <button className="modal__x" onClick={onClose}>✕</button>
         <h2 className="neon-title">{editing ? 'Edit court' : 'Mark a new court'}</h2>
-        <p className="coords">Coordinates: {coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : 'not set'}</p>
+
+        <label className="search-label">Find the spot</label>
+        <PlaceSearch onPick={handlePlace} notify={notify} />
+        <div className="coords-row">
+          <span className="coords">📍 {coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : 'no location yet'}</span>
+          {onPickOnMap && (
+            <button type="button" className="linkbtn" onClick={onPickOnMap}>or drop a pin on the map</button>
+          )}
+        </div>
+
         <form onSubmit={submit} className="form">
           <label>Name<input value={form.name} onChange={(e) => set('name', e.target.value)} required placeholder="e.g. Victoria Park Courts" /></label>
-          <label>Address (click "Locate" to get coordinates from the address)
-            <div className="addr-row">
-              <input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Street / park / postcode" />
-              <button type="button" className="btn btn--ghost" onClick={locate} disabled={geoBusy}>{geoBusy ? 'Locating…' : '📍 Locate'}</button>
-            </div>
-          </label>
+          <label>Address<input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Street / park / postcode" /></label>
           <label>Description<textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3} placeholder="Vibe, crowd, best times to play…" /></label>
           <div className="form-row">
             <label>Hoops<input type="number" min={1} max={20} value={form.hoops} onChange={(e) => set('hoops', e.target.value)} /></label>
@@ -885,6 +971,7 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [addMode, setAddMode] = useState(false);
   const [addPos, setAddPos] = useState(null);
+  const [addingCourt, setAddingCourt] = useState(false);
   const [editCourt, setEditCourt] = useState(null);
   const [userLoc, setUserLoc] = useState(null);
   const [toast, setToast] = useState(null);
@@ -931,7 +1018,7 @@ export default function App() {
 
   const handlePick = useCallback((pos) => {
     if (!user) { setAddMode(false); return requireLogin(); }
-    setAddPos(pos); setAddMode(false);
+    setAddPos(pos); setAddMode(false); setAddingCourt(true);
   }, [user, requireLogin]);
 
   function logout() { clearSession(); setUser(null); notify('success', 'Logged out'); }
@@ -962,8 +1049,12 @@ export default function App() {
         <div className="topbar">
           <button
             className={'btn btn--ghost ' + (addMode ? 'btn--armed' : '')}
-            onClick={() => { if (!user) return requireLogin(); setAddMode((m) => !m); }}>
-            {addMode ? 'Click the map to pick · Cancel' : '＋ Mark court'}
+            onClick={() => {
+              if (addMode) { setAddMode(false); return; }
+              if (!user) return requireLogin();
+              setAddPos(null); setAddingCourt(true);
+            }}>
+            {addMode ? 'Click the map · Cancel' : '＋ Mark court'}
           </button>
           <button className="btn btn--ghost" onClick={locateMe}>📍 Nearby</button>
           <button className="btn btn--ghost" onClick={() => setLeaderboardOpen(true)}>🏆 Leaders</button>
@@ -1004,10 +1095,13 @@ export default function App() {
 
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} onAuthed={setUser} notify={notify} />}
 
-      {addPos && (
+      {addingCourt && (
         <CourtFormModal
-          pos={addPos} onClose={() => setAddPos(null)}
+          key={addPos ? `${addPos.lat},${addPos.lng}` : 'new'}
+          pos={addPos}
+          onClose={() => { setAddingCourt(false); setAddPos(null); }}
           onSaved={(court) => { loadCourts(); selectCourt(court); }}
+          onPickOnMap={() => { setAddingCourt(false); setAddMode(true); }}
           notify={notify}
         />
       )}
