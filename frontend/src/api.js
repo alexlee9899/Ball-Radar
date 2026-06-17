@@ -1,7 +1,10 @@
 // Lightweight API client. Token kept in localStorage.
 // API_BASE is empty for local dev (Vite proxies /api + /uploads to the backend),
 // and set to the backend's public URL when frontend & backend are separate services.
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+let API_BASE = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+// Safety net: if a scheme was forgotten (e.g. "host.up.railway.app"), assume https
+// so the browser treats it as an absolute URL instead of a relative path.
+if (API_BASE && !/^https?:\/\//i.test(API_BASE)) API_BASE = 'https://' + API_BASE;
 const TOKEN_KEY = 'ballradar_token';
 const USER_KEY = 'ballradar_user';
 

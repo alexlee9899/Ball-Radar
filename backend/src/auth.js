@@ -82,7 +82,13 @@ router.post('/register', async (req, res) => {
     await run('INSERT INTO users (email, username, password_hash) VALUES ($1,$2,$3)', [email, username, hash]);
   }
 
-  const code = await createAndSendCode(email, 'verify');
+  let code;
+  try {
+    code = await createAndSendCode(email, 'verify');
+  } catch (e) {
+    console.error('Email send failed:', e.message);
+    return res.status(502).json({ error: 'Failed to send verification email, please try again later' });
+  }
   res.json({
     message: 'Verification code sent to your email',
     ...(isDevMail() ? { devCode: code, devNote: 'Dev mode: code is also printed in the backend log' } : {}),
@@ -122,7 +128,13 @@ router.post('/resend', async (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
   const wait = await cooldownRemaining(email, 'verify');
   if (wait > 0) return res.status(429).json({ error: `Please wait ${wait}s before requesting another code` });
-  const code = await createAndSendCode(email, 'verify');
+  let code;
+  try {
+    code = await createAndSendCode(email, 'verify');
+  } catch (e) {
+    console.error('Email send failed:', e.message);
+    return res.status(502).json({ error: 'Failed to send verification email, please try again later' });
+  }
   res.json({ message: 'Verification code resent', ...(isDevMail() ? { devCode: code } : {}) });
 });
 
@@ -136,7 +148,13 @@ router.post('/forgot', async (req, res) => {
   if (!user || !user.verified) return res.json(generic);
   const wait = await cooldownRemaining(email, 'reset');
   if (wait > 0) return res.status(429).json({ error: `Please wait ${wait}s before requesting another code` });
-  const code = await createAndSendCode(email, 'reset');
+  let code;
+  try {
+    code = await createAndSendCode(email, 'reset');
+  } catch (e) {
+    console.error('Email send failed:', e.message);
+    return res.status(502).json({ error: 'Failed to send reset email, please try again later' });
+  }
   res.json({ ...generic, ...(isDevMail() ? { devCode: code } : {}) });
 });
 
