@@ -83,6 +83,32 @@ export async function initDb() {
       filename TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+
+    -- amenities (added to existing courts table on boot)
+    ALTER TABLE courts ADD COLUMN IF NOT EXISTS water    BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE courts ADD COLUMN IF NOT EXISTS toilets  BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE courts ADD COLUMN IF NOT EXISTS parking  BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE courts ADD COLUMN IF NOT EXISTS shade    BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE courts ADD COLUMN IF NOT EXISTS fenced   BOOLEAN NOT NULL DEFAULT FALSE;
+
+    -- follow graph
+    CREATE TABLE IF NOT EXISTS follows (
+      follower_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      following_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (follower_id, following_id)
+    );
+
+    -- problem reports (broken hoop, locked gate, etc.)
+    CREATE TABLE IF NOT EXISTS reports (
+      id SERIAL PRIMARY KEY,
+      court_id INTEGER NOT NULL REFERENCES courts(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'other',
+      note TEXT DEFAULT '',
+      resolved BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 }
 

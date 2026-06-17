@@ -69,4 +69,9 @@ export const api = {
     fd.append('photo', file);
     return request(`/api/courts/${id}/photos`, { method: 'POST', formData: fd });
   },
+  reportCourt: (id, b) => request(`/api/courts/${id}/reports`, { method: 'POST', body: b }),
+  userProfile: (id) => request(`/api/users/${id}`),
+  leaderboard: () => request('/api/users/leaderboard'),
+  follow: (id) => request(`/api/users/${id}/follow`, { method: 'POST' }),
+  unfollow: (id) => request(`/api/users/${id}/follow`, { method: 'DELETE' }),
 };

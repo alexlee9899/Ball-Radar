@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
+import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { api, assetUrl, getUser, getToken, setSession, clearSession } from './api.js';
 
 const SYDNEY_CENTER = { lat: -33.8688, lng: 151.2093 };
@@ -110,6 +111,7 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
   const mapRef = useRef(null);
   const googleRef = useRef(null);
   const markersRef = useRef(new Map());
+  const clustererRef = useRef(null);
   const userMarkerRef = useRef(null);
   const addModeRef = useRef(addMode);
   const onPickRef = useRef(onPick);
@@ -139,6 +141,7 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
           if (addModeRef.current) onPickRef.current({ lat: e.latLng.lat(), lng: e.latLng.lng() });
         });
         mapRef.current = map;
+        clustererRef.current = new MarkerClusterer({ map });
         setStatus('ready');
       })
       .catch((err) => setStatus(err.message === 'NO_KEY' ? 'nokey' : 'error'));
@@ -155,17 +158,17 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
     });
   }, [theme, status]);
 
-  // sync court markers
+  // sync court markers (managed by the clusterer)
   useEffect(() => {
-    const google = googleRef.current, map = mapRef.current;
-    if (!google || !map) return;
+    const google = googleRef.current, map = mapRef.current, clusterer = clustererRef.current;
+    if (!google || !map || !clusterer) return;
     const seen = new Set();
     for (const c of courts) {
       seen.add(c.id);
       const active = c.id === selectedId;
       let m = markersRef.current.get(c.id);
       if (!m) {
-        m = new google.maps.Marker({ position: { lat: c.lat, lng: c.lng }, map });
+        m = new google.maps.Marker({ position: { lat: c.lat, lng: c.lng } });
         m.addListener('click', () => onSelectRef.current(c));
         markersRef.current.set(c.id, m);
       }
@@ -175,8 +178,10 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
       m.setTitle(c.name + (c.avgRating ? ` · ★${c.avgRating}` : ''));
     }
     for (const [id, m] of markersRef.current) {
-      if (!seen.has(id)) { m.setMap(null); markersRef.current.delete(id); }
+      if (!seen.has(id)) { markersRef.current.delete(id); }
     }
+    clusterer.clearMarkers();
+    clusterer.addMarkers(Array.from(markersRef.current.values()));
   }, [courts, selectedId, status, theme]);
 
   // user-location marker
@@ -377,6 +382,11 @@ function CourtFormModal({ initial, pos, onClose, onSaved, notify }) {
     indoor: initial?.indoor || false,
     lighting: initial?.lighting || false,
     free: initial?.free ?? true,
+    water: initial?.water || false,
+    toilets: initial?.toilets || false,
+    parking: initial?.parking || false,
+    shade: initial?.shade || false,
+    fenced: initial?.fenced || false,
   });
   const [coords, setCoords] = useState(
     editing ? { lat: initial.lat, lng: initial.lng } : pos
@@ -437,6 +447,14 @@ function CourtFormModal({ initial, pos, onClose, onSaved, notify }) {
             <label className="chk"><input type="checkbox" checked={form.lighting} onChange={(e) => set('lighting', e.target.checked)} />Lights</label>
             <label className="chk"><input type="checkbox" checked={form.free} onChange={(e) => set('free', e.target.checked)} />Free</label>
           </div>
+          <label>Amenities</label>
+          <div className="checks">
+            <label className="chk"><input type="checkbox" checked={form.water} onChange={(e) => set('water', e.target.checked)} />Water</label>
+            <label className="chk"><input type="checkbox" checked={form.toilets} onChange={(e) => set('toilets', e.target.checked)} />Toilets</label>
+            <label className="chk"><input type="checkbox" checked={form.parking} onChange={(e) => set('parking', e.target.checked)} />Parking</label>
+            <label className="chk"><input type="checkbox" checked={form.shade} onChange={(e) => set('shade', e.target.checked)} />Shade</label>
+            <label className="chk"><input type="checkbox" checked={form.fenced} onChange={(e) => set('fenced', e.target.checked)} />Fenced</label>
+          </div>
           <button className="btn btn--primary" disabled={busy}>{busy ? 'Saving…' : editing ? 'Save changes' : 'Save court'}</button>
         </form>
       </div>
@@ -445,12 +463,23 @@ function CourtFormModal({ initial, pos, onClose, onSaved, notify }) {
 }
 
 // ---------- Court detail panel ----------
-function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, requireLogin, notify }) {
+const REPORT_TYPES = [
+  { v: 'broken_hoop', label: 'Broken hoop' },
+  { v: 'locked', label: 'Locked / no access' },
+  { v: 'surface', label: 'Bad surface' },
+  { v: 'lighting', label: 'Lights out' },
+  { v: 'other', label: 'Other' },
+];
+
+function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, onOpenProfile, requireLogin, notify }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [review, setReview] = useState({ rating: 0, comment: '', tags: [] });
   const [hasMine, setHasMine] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [report, setReport] = useState({ type: 'broken_hoop', note: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -509,6 +538,22 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, req
     catch (err) { notify('error', err.message); }
   }
 
+  async function submitReport(e) {
+    e.preventDefault();
+    if (!user) return requireLogin();
+    try {
+      await api.reportCourt(courtId, report);
+      notify('success', 'Thanks — report submitted');
+      setReportOpen(false); setReport({ type: 'broken_hoop', note: '' });
+      await load();
+    } catch (err) { notify('error', err.message); }
+  }
+
+  const AMENITIES = [
+    ['water', '🚰 Water'], ['toilets', '🚻 Toilets'], ['parking', '🅿️ Parking'],
+    ['shade', '🌳 Shade'], ['fenced', '🔲 Fenced'],
+  ];
+
   const c = data?.court;
   const isOwner = user && c && c.created_by === user.id;
   const canDeletePhoto = (p) => user && (p.user_id === user.id || isOwner);
@@ -528,12 +573,12 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, req
               <span>{c.avgRating ?? 'No rating'}{c.reviewCount ? ` · ${c.reviewCount} reviews` : ''}</span>
             </div>
             {c.address && <p className="detail__addr">📍 {c.address}</p>}
-            {isOwner && (
-              <div className="owner-actions">
-                <button className="btn btn--ghost btn--sm" onClick={() => onEdit(c)}>Edit</button>
-                <button className="btn btn--danger btn--sm" onClick={deleteCourt}>Delete court</button>
-              </div>
-            )}
+            <div className="owner-actions">
+              <a className="btn btn--ghost btn--sm" target="_blank" rel="noreferrer"
+                href={`https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}`}>🧭 Directions</a>
+              {isOwner && <button className="btn btn--ghost btn--sm" onClick={() => onEdit(c)}>Edit</button>}
+              {isOwner && <button className="btn btn--danger btn--sm" onClick={deleteCourt}>Delete</button>}
+            </div>
           </div>
 
           {c.description && <p className="detail__desc">{c.description}</p>}
@@ -545,9 +590,43 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, req
             <div><span>Cost</span><b>{c.free ? 'Free' : 'Paid'}</b></div>
           </div>
 
+          {AMENITIES.some(([k]) => c[k]) && (
+            <div className="amenities">
+              {AMENITIES.filter(([k]) => c[k]).map(([k, label]) => (
+                <span key={k} className="chip chip--amenity">{label}</span>
+              ))}
+            </div>
+          )}
+
           {c.topTags?.length > 0 && (
             <div className="tagcloud">{c.topTags.map((t) => <span key={t} className="tag">#{t}</span>)}</div>
           )}
+
+          {/* Active problem reports */}
+          <div className="section-h">
+            <h3>Issues ({data.reports?.length || 0})</h3>
+            <button className="linkbtn" onClick={() => (user ? setReportOpen((v) => !v) : requireLogin())}>
+              {reportOpen ? 'Cancel' : '⚠ Report a problem'}
+            </button>
+          </div>
+          {reportOpen && (
+            <form className="report-form" onSubmit={submitReport}>
+              <select value={report.type} onChange={(e) => setReport((r) => ({ ...r, type: e.target.value }))}>
+                {REPORT_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+              </select>
+              <input placeholder="Optional details…" value={report.note}
+                onChange={(e) => setReport((r) => ({ ...r, note: e.target.value }))} />
+              <button className="btn btn--primary btn--sm">Submit</button>
+            </form>
+          )}
+          {data.reports?.length > 0 ? (
+            <ul className="reports">
+              {data.reports.map((r) => (
+                <li key={r.id}>⚠ <b>{REPORT_TYPES.find((t) => t.v === r.type)?.label || r.type}</b>
+                  {r.note ? ` — ${r.note}` : ''} <span className="muted">· {r.username}</span></li>
+              ))}
+            </ul>
+          ) : <p className="empty">No reported issues. 👍</p>}
 
           <div className="section-h">
             <h3>Photos ({data.photos.length})</h3>
@@ -557,7 +636,7 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, req
             <div className="photos">
               {data.photos.map((p) => (
                 <div key={p.id} className="photo">
-                  <a href={assetUrl(p.url)} target="_blank" rel="noreferrer"><img src={assetUrl(p.url)} alt="Court" loading="lazy" /></a>
+                  <img src={assetUrl(p.url)} alt="Court" loading="lazy" onClick={() => setLightbox(assetUrl(p.url))} />
                   {canDeletePhoto(p) && <button className="photo__del" title="Delete" onClick={() => deletePhoto(p.id)}>✕</button>}
                 </div>
               ))}
@@ -585,7 +664,7 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, req
               {data.reviews.map((r) => (
                 <li key={r.id} className="review">
                   <div className="review__top">
-                    <b>{r.username}{user && r.user_id === user.id ? ' (me)' : ''}</b>
+                    <b className="userlink" onClick={() => onOpenProfile?.(r.user_id)}>{r.username}{user && r.user_id === user.id ? ' (me)' : ''}</b>
                     <Stars value={r.rating} size={13} />
                   </div>
                   {r.tags?.length > 0 && <div className="review__tags">{r.tags.map((t) => <span key={t}>#{t}</span>)}</div>}
@@ -596,6 +675,110 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, req
           ) : <p className="empty">No reviews yet — be the first.</p>}
         </>
       )}
+      {lightbox && (
+        <div className="lightbox" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="Court" />
+          <button className="lightbox__x" onClick={() => setLightbox(null)}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Profile modal ----------
+function ProfileModal({ userId, currentUser, onClose, onOpenCourt, notify }) {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try { setData(await api.userProfile(userId)); }
+    catch (err) { notify('error', err.message); }
+  }, [userId, notify]);
+  useEffect(() => { load(); }, [load]);
+
+  async function toggleFollow() {
+    if (!currentUser) return notify('error', 'Please log in first');
+    setBusy(true);
+    try {
+      if (data.isFollowing) await api.unfollow(userId); else await api.follow(userId);
+      await load();
+    } catch (err) { notify('error', err.message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal__x" onClick={onClose}>✕</button>
+        {!data ? <div className="detail__loading">Loading…</div> : (
+          <>
+            <h2 className="neon-title">{data.user.username}</h2>
+            {data.badges?.length > 0 && (
+              <div className="tagcloud">{data.badges.map((b) => <span key={b} className="chip chip--amenity">{b}</span>)}</div>
+            )}
+            <div className="profile-stats">
+              <div><b>{data.counts.courts}</b><span>Courts</span></div>
+              <div><b>{data.counts.reviews}</b><span>Reviews</span></div>
+              <div><b>{data.counts.photos}</b><span>Photos</span></div>
+              <div><b>{data.counts.followers}</b><span>Followers</span></div>
+              <div><b>{data.counts.following}</b><span>Following</span></div>
+            </div>
+            {!data.isMe && currentUser && (
+              <button className={'btn ' + (data.isFollowing ? 'btn--ghost' : 'btn--primary')} disabled={busy} onClick={toggleFollow}>
+                {data.isFollowing ? 'Following ✓' : '+ Follow'}
+              </button>
+            )}
+            <div className="section-h"><h3>Courts added ({data.courts.length})</h3></div>
+            {data.courts.length > 0 ? (
+              <ul className="mini-list">
+                {data.courts.map((c) => (
+                  <li key={c.id} onClick={() => onOpenCourt?.(c)}>{c.indoor ? '🏠' : '🏀'} {c.name}</li>
+                ))}
+              </ul>
+            ) : <p className="empty">No courts yet.</p>}
+            <div className="section-h"><h3>Recent reviews ({data.reviews.length})</h3></div>
+            {data.reviews.length > 0 ? (
+              <ul className="reviews">
+                {data.reviews.slice(0, 10).map((r) => (
+                  <li key={r.id} className="review">
+                    <div className="review__top"><b>{r.court_name}</b><Stars value={r.rating} size={13} /></div>
+                    {r.comment && <p>{r.comment}</p>}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="empty">No reviews yet.</p>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Leaderboard modal ----------
+function LeaderboardModal({ onClose, onOpenProfile, notify }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    api.leaderboard().then((d) => setRows(d.leaderboard || [])).catch((e) => notify('error', e.message));
+  }, [notify]);
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal__x" onClick={onClose}>✕</button>
+        <h2 className="neon-title">🏆 Top contributors</h2>
+        {!rows ? <div className="detail__loading">Loading…</div> : rows.length === 0 ? (
+          <p className="empty">No contributors yet — be the first to add a court!</p>
+        ) : (
+          <ol className="leaderboard">
+            {rows.map((u, i) => (
+              <li key={u.id}>
+                <span className="lb-rank">{i + 1}</span>
+                <span className="lb-name userlink" onClick={() => onOpenProfile?.(u.id)}>{u.username}</span>
+                <span className="lb-meta">{u.courts}🏀 · {u.reviews}✍️ · {u.photos}📸</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
     </div>
   );
 }
@@ -610,12 +793,22 @@ function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc })
       if (filters.type === 'outdoor' && c.indoor) return false;
       if (filters.free && !c.free) return false;
       if (filters.lighting && !c.lighting) return false;
+      if (filters.tag && !((c.topTags || []).includes(filters.tag))) return false;
       return true;
     });
     if (userLoc) arr = arr.map((c) => ({ ...c, _dist: haversineKm(userLoc, { lat: c.lat, lng: c.lng }) }));
-    if (userLoc && filters.sort === 'dist') arr.sort((a, b) => a._dist - b._dist);
+    if (filters.sort === 'dist' && userLoc) arr.sort((a, b) => a._dist - b._dist);
+    else if (filters.sort === 'rating') arr.sort((a, b) => (b.avgRating || 0) - (a.avgRating || 0));
+    else if (filters.sort === 'newest') arr.sort((a, b) => b.id - a.id);
     return arr;
   }, [courts, filters, userLoc]);
+
+  // tags present across courts, for quick-filter chips
+  const allTags = useMemo(() => {
+    const set = new Set();
+    for (const c of courts || []) for (const t of c.topTags || []) set.add(t);
+    return Array.from(set).slice(0, 12);
+  }, [courts]);
 
   return (
     <aside className="sidebar">
@@ -636,10 +829,24 @@ function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc })
         <div className="toggles">
           <label className="chk"><input type="checkbox" checked={filters.free} onChange={(e) => set('free', e.target.checked)} />Free only</label>
           <label className="chk"><input type="checkbox" checked={filters.lighting} onChange={(e) => set('lighting', e.target.checked)} />Has lights</label>
-          {userLoc && (
-            <label className="chk"><input type="checkbox" checked={filters.sort === 'dist'} onChange={(e) => set('sort', e.target.checked ? 'dist' : 'default')} />By distance</label>
-          )}
         </div>
+        <div className="sortrow">
+          <span>Sort</span>
+          <select value={filters.sort} onChange={(e) => set('sort', e.target.value)}>
+            <option value="default">Default</option>
+            <option value="rating">Top rated</option>
+            <option value="newest">Newest</option>
+            {userLoc && <option value="dist">Nearest</option>}
+          </select>
+        </div>
+        {allTags.length > 0 && (
+          <div className="tagfilter">
+            {allTags.map((t) => (
+              <button key={t} className={'tag-pick ' + (filters.tag === t ? 'on' : '')}
+                onClick={() => set('tag', filters.tag === t ? null : t)}>#{t}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="count">{list.length} / {courts.length} courts</div>
@@ -674,7 +881,7 @@ export default function App() {
   const [courts, setCourts] = useState([]);
   const [selected, setSelected] = useState(null);
   const [flyTarget, setFlyTarget] = useState(null);
-  const [filters, setFilters] = useState({ q: '', type: 'all', free: false, lighting: false, sort: 'default' });
+  const [filters, setFilters] = useState({ q: '', type: 'all', free: false, lighting: false, sort: 'default', tag: null });
   const [authOpen, setAuthOpen] = useState(false);
   const [addMode, setAddMode] = useState(false);
   const [addPos, setAddPos] = useState(null);
@@ -682,6 +889,8 @@ export default function App() {
   const [userLoc, setUserLoc] = useState(null);
   const [toast, setToast] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('ballradar_theme') || 'day');
+  const [profileUserId, setProfileUserId] = useState(null);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
   // apply + persist theme
   useEffect(() => {
@@ -757,13 +966,17 @@ export default function App() {
             {addMode ? 'Click the map to pick · Cancel' : '＋ Mark court'}
           </button>
           <button className="btn btn--ghost" onClick={locateMe}>📍 Nearby</button>
+          <button className="btn btn--ghost" onClick={() => setLeaderboardOpen(true)}>🏆 Leaders</button>
           <button className="btn btn--ghost" onClick={() => setTheme((t) => (t === 'day' ? 'night' : 'day'))}
             title="Toggle day / night">
             {theme === 'day' ? '🌙 Night' : '☀️ Day'}
           </button>
           <div className="spacer" />
           {user ? (
-            <div className="user-chip"><span>👤 {user.username}</span><button className="linkbtn" onClick={logout}>Log out</button></div>
+            <div className="user-chip">
+              <span className="userlink" onClick={() => setProfileUserId(user.id)}>👤 {user.username}</span>
+              <button className="linkbtn" onClick={logout}>Log out</button>
+            </div>
           ) : (
             <button className="btn btn--primary" onClick={() => setAuthOpen(true)}>Log in / Sign up</button>
           )}
@@ -784,6 +997,7 @@ export default function App() {
           onChanged={loadCourts}
           onEdit={(c) => setEditCourt(c)}
           onDeleted={() => { setSelected(null); loadCourts(); }}
+          onOpenProfile={(id) => setProfileUserId(id)}
           requireLogin={requireLogin} notify={notify}
         />
       )}
@@ -802,6 +1016,23 @@ export default function App() {
         <CourtFormModal
           initial={editCourt} onClose={() => setEditCourt(null)}
           onSaved={(court) => { loadCourts(); setSelected(court); setFlyTarget({ lat: court.lat, lng: court.lng, _t: Date.now() }); }}
+          notify={notify}
+        />
+      )}
+
+      {profileUserId && (
+        <ProfileModal
+          userId={profileUserId} currentUser={user}
+          onClose={() => setProfileUserId(null)}
+          onOpenCourt={(c) => { setProfileUserId(null); selectCourt(c); }}
+          notify={notify}
+        />
+      )}
+
+      {leaderboardOpen && (
+        <LeaderboardModal
+          onClose={() => setLeaderboardOpen(false)}
+          onOpenProfile={(id) => { setLeaderboardOpen(false); setProfileUserId(id); }}
           notify={notify}
         />
       )}

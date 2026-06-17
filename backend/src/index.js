@@ -7,6 +7,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import authRouter from './auth.js';
 import courtsRouter, { uploadsDir } from './courts.js';
+import usersRouter from './users.js';
 import { seedCourts } from './seed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,7 @@ const authLimiter = rateLimit({
 app.get('/api/health', (_req, res) => res.json({ ok: true, name: 'Ball Radar API' }));
 app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/courts', courtsRouter);
+app.use('/api/users', usersRouter);
 
 // Serve the built frontend in production (single-service deploy).
 // FRONTEND_DIST defaults to ../public, where the Docker image copies the Vite build.

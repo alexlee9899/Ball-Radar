@@ -87,22 +87,31 @@ router.get('/:id', async (req, res) => {
     [row.id]
   )).map((p) => ({ ...p, url: `/uploads/${p.filename}` }));
 
-  res.json({ court: await courtWithStats(row), reviews, photos });
+  const reports = await all(
+    `SELECT r.id, r.type, r.note, r.created_at, u.username FROM reports r
+       JOIN users u ON u.id = r.user_id WHERE r.court_id=$1 AND r.resolved=FALSE ORDER BY r.id DESC`,
+    [row.id]
+  );
+
+  res.json({ court: await courtWithStats(row), reviews, photos, reports });
 });
 
 // POST /api/courts — add a court (auth)
 router.post('/', requireAuth, async (req, res) => {
   const { name, description = '', lat, lng, address = '', indoor = false,
-    hoops = 2, surface = '', lighting = false, free = true } = req.body || {};
+    hoops = 2, surface = '', lighting = false, free = true,
+    water = false, toilets = false, parking = false, shade = false, fenced = false } = req.body || {};
   if (!name || typeof lat !== 'number' || typeof lng !== 'number')
     return res.status(400).json({ error: 'Missing name / lat / lng' });
   if (lat < -34.4 || lat > -33.3 || lng < 150.4 || lng > 151.7)
     return res.status(400).json({ error: 'Coordinates are outside Greater Sydney' });
 
   const inserted = await one(
-    `INSERT INTO courts (name, description, lat, lng, address, indoor, hoops, surface, lighting, free, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-    [name, description, lat, lng, address, !!indoor, hoops, surface, !!lighting, !!free, req.user.id]
+    `INSERT INTO courts (name, description, lat, lng, address, indoor, hoops, surface, lighting, free,
+       water, toilets, parking, shade, fenced, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+    [name, description, lat, lng, address, !!indoor, hoops, surface, !!lighting, !!free,
+      !!water, !!toilets, !!parking, !!shade, !!fenced, req.user.id]
   );
   res.status(201).json({ court: await courtWithStats(inserted) });
 });
@@ -131,15 +140,22 @@ router.put('/:id', requireAuth, async (req, res) => {
     indoor: b.indoor != null ? !!b.indoor : court.indoor,
     lighting: b.lighting != null ? !!b.lighting : court.lighting,
     free: b.free != null ? !!b.free : court.free,
+    water: b.water != null ? !!b.water : court.water,
+    toilets: b.toilets != null ? !!b.toilets : court.toilets,
+    parking: b.parking != null ? !!b.parking : court.parking,
+    shade: b.shade != null ? !!b.shade : court.shade,
+    fenced: b.fenced != null ? !!b.fenced : court.fenced,
     lat, lng,
   };
   if (!next.name) return res.status(400).json({ error: 'name cannot be empty' });
 
   const row = await one(
     `UPDATE courts SET name=$1, description=$2, address=$3, surface=$4, hoops=$5,
-       indoor=$6, lighting=$7, free=$8, lat=$9, lng=$10 WHERE id=$11 RETURNING *`,
+       indoor=$6, lighting=$7, free=$8, water=$9, toilets=$10, parking=$11, shade=$12, fenced=$13,
+       lat=$14, lng=$15 WHERE id=$16 RETURNING *`,
     [next.name, next.description, next.address, next.surface, next.hoops,
-      next.indoor, next.lighting, next.free, next.lat, next.lng, court.id]
+      next.indoor, next.lighting, next.free, next.water, next.toilets, next.parking, next.shade, next.fenced,
+      next.lat, next.lng, court.id]
   );
   res.json({ court: await courtWithStats(row) });
 });
@@ -211,6 +227,18 @@ router.delete('/:id/photos/:photoId', requireAuth, async (req, res) => {
   try { fs.unlinkSync(path.join(uploadsDir, photo.filename)); } catch {}
   await run('DELETE FROM photos WHERE id=$1', [photo.id]);
   res.json({ message: 'Photo deleted' });
+});
+
+// POST /api/courts/:id/reports — report a problem (auth)
+const REPORT_TYPES = ['broken_hoop', 'locked', 'surface', 'lighting', 'other'];
+router.post('/:id/reports', requireAuth, async (req, res) => {
+  const court = await one('SELECT id FROM courts WHERE id=$1', [req.params.id]);
+  if (!court) return res.status(404).json({ error: 'Court not found' });
+  const { type = 'other', note = '' } = req.body || {};
+  const t = REPORT_TYPES.includes(type) ? type : 'other';
+  await run('INSERT INTO reports (court_id, user_id, type, note) VALUES ($1,$2,$3,$4)',
+    [court.id, req.user.id, t, String(note).slice(0, 300)]);
+  res.status(201).json({ message: 'Report submitted' });
 });
 
 export default router;
