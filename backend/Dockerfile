@@ -14,5 +14,5 @@ COPY . .
 EXPOSE 4000
 
 # Production start. docker-compose overrides this with `npm run dev` for hot reload.
-# Schema init + seed happen automatically on boot (see src/index.js).
+# Schema init (CREATE TABLE IF NOT EXISTS) runs automatically on boot (see src/index.js).
 CMD ["npm", "start"]

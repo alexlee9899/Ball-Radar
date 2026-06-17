@@ -14,6 +14,8 @@
   --bad: #ff5c7a;
   --glow: 0 0 12px rgba(0, 240, 255, 0.55);
   --on-accent: #04121a;      /* text on accent-colored buttons/pills */
+  --star: #fbbc04;           /* Google-style yellow for rating stars */
+  --star-empty: #2a3a5c;     /* unfilled star */
   --tint: rgba(0, 240, 255, 0.1);
   --body-grad:
     radial-gradient(1200px 700px at 80% -10%, rgba(0, 240, 255, 0.08), transparent 60%),
@@ -37,6 +39,7 @@
   --bad: #5a574e;
   --glow: 0 1px 4px rgba(40, 36, 28, 0.16);
   --on-accent: #fbfaf7;
+  --star-empty: #d4d0c7;     /* light grey unfilled star for day mode */
   --tint: rgba(40, 36, 28, 0.06);
   --body-grad:
     radial-gradient(1000px 620px at 82% -12%, rgba(40, 36, 28, 0.05), transparent 60%),
@@ -357,8 +360,8 @@ h1, h2, h3 { font-family: 'Orbitron', sans-serif; margin: 0; letter-spacing: 0.5
 .tag-pick.on { background: rgba(0,240,255,0.14); border-color: var(--cyan); color: var(--cyan); }
 
 .stars { display: inline-flex; gap: 2px; line-height: 1; }
-.star { color: #2a3a5c; transition: color .1s; }
-.star.on { color: var(--amber); text-shadow: 0 0 8px rgba(255,179,60,0.6); }
+.star { color: var(--star-empty); transition: color .1s; }
+.star.on { color: var(--star); text-shadow: 0 0 6px rgba(251,188,4,0.45); }
 
 .reviews { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .review { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }

@@ -11,7 +11,8 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "seed": "node src/seed.js",
-    "migrate:en": "node src/migrate-en.js"
+    "migrate:en": "node src/migrate-en.js",
+    "import:courts": "node src/import-courts.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
