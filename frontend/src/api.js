@@ -7,6 +7,21 @@ let API_BASE = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '
 if (API_BASE && !/^https?:\/\//i.test(API_BASE)) API_BASE = 'https://' + API_BASE;
 const TOKEN_KEY = 'ballradar_token';
 const USER_KEY = 'ballradar_user';
+const GUEST_KEY = 'ballradar_guest_name';
+
+// Guest identity — a nickname kept in localStorage so visitors can contribute
+// (add courts / reviews) without an account, and be remembered next time.
+export function getGuestName() {
+  return localStorage.getItem(GUEST_KEY) || '';
+}
+export function setGuestName(name) {
+  if (name) localStorage.setItem(GUEST_KEY, name);
+  else localStorage.removeItem(GUEST_KEY);
+}
+// Attach the guest nickname to a payload when the visitor is not logged in.
+function withGuest(body) {
+  return getToken() ? body : { ...body, guestName: getGuestName() };
+}
 
 // Build an absolute URL for a backend asset (e.g. an uploaded photo at /uploads/..).
 export function assetUrl(path) {
@@ -58,10 +73,10 @@ export const api = {
   me: () => request('/api/auth/me'),
   courts: () => request('/api/courts'),
   court: (id) => request(`/api/courts/${id}`),
-  addCourt: (b) => request('/api/courts', { method: 'POST', body: b }),
+  addCourt: (b) => request('/api/courts', { method: 'POST', body: withGuest(b) }),
   updateCourt: (id, b) => request(`/api/courts/${id}`, { method: 'PUT', body: b }),
   deleteCourt: (id) => request(`/api/courts/${id}`, { method: 'DELETE' }),
-  addReview: (id, b) => request(`/api/courts/${id}/reviews`, { method: 'POST', body: b }),
+  addReview: (id, b) => request(`/api/courts/${id}/reviews`, { method: 'POST', body: withGuest(b) }),
   deleteReview: (id) => request(`/api/courts/${id}/reviews`, { method: 'DELETE' }),
   deletePhoto: (id, photoId) => request(`/api/courts/${id}/photos/${photoId}`, { method: 'DELETE' }),
   uploadPhoto: (id, file) => {

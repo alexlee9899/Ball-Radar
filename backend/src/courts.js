@@ -4,7 +4,14 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { one, all, run } from './db.js';
-import { requireAuth } from './auth.js';
+import { requireAuth, optionalAuth } from './auth.js';
+
+// Resolve who is creating content: a logged-in user, or a guest with a nickname.
+function contributor(req) {
+  if (req.user) return { userId: req.user.id, guestName: null };
+  const guestName = String(req.body?.guestName || '').trim().slice(0, 40);
+  return { userId: null, guestName };
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Configurable so Railway can point this at a persistent Volume mount.
@@ -75,7 +82,7 @@ async function courtWithStats(row) {
 // GET /api/courts — list all with stats
 router.get('/', async (_req, res) => {
   const rows = await all(
-    `SELECT c.*, u.username AS creator FROM courts c
+    `SELECT c.*, COALESCE(u.username, c.guest_name) AS creator FROM courts c
        LEFT JOIN users u ON u.id = c.created_by ORDER BY c.id`
   );
   res.json({ courts: await Promise.all(rows.map(courtWithStats)) });
@@ -84,15 +91,15 @@ router.get('/', async (_req, res) => {
 // GET /api/courts/:id — detail with reviews + photos
 router.get('/:id', async (req, res) => {
   const row = await one(
-    `SELECT c.*, u.username AS creator FROM courts c
+    `SELECT c.*, COALESCE(u.username, c.guest_name) AS creator FROM courts c
        LEFT JOIN users u ON u.id = c.created_by WHERE c.id=$1`,
     [req.params.id]
   );
   if (!row) return res.status(404).json({ error: 'Court not found' });
 
   const reviews = (await all(
-    `SELECT r.*, u.username FROM reviews r
-       JOIN users u ON u.id = r.user_id WHERE r.court_id=$1 ORDER BY r.id DESC`,
+    `SELECT r.*, COALESCE(u.username, r.guest_name) AS username FROM reviews r
+       LEFT JOIN users u ON u.id = r.user_id WHERE r.court_id=$1 ORDER BY r.id DESC`,
     [row.id]
   )).map((r) => ({ ...r, tags: JSON.parse(r.tags || '[]') }));
 
@@ -111,11 +118,14 @@ router.get('/:id', async (req, res) => {
   res.json({ court: await courtWithStats(row), reviews, photos, reports });
 });
 
-// POST /api/courts — add a court (auth)
-router.post('/', requireAuth, async (req, res) => {
+// POST /api/courts — add a court (logged-in user OR guest with a nickname)
+router.post('/', optionalAuth, async (req, res) => {
   const { name, description = '', lat, lng, address = '', indoor = false,
     hoops = 2, surface = '', lighting = false, free = true,
     water = false, toilets = false, parking = false, shade = false, fenced = false } = req.body || {};
+  const { userId, guestName } = contributor(req);
+  if (!userId && !guestName)
+    return res.status(401).json({ error: 'Log in or enter a nickname to add a court' });
   if (!name || typeof lat !== 'number' || typeof lng !== 'number')
     return res.status(400).json({ error: 'Missing name / lat / lng' });
   if (lat < -34.4 || lat > -33.3 || lng < 150.4 || lng > 151.7)
@@ -123,10 +133,10 @@ router.post('/', requireAuth, async (req, res) => {
 
   const inserted = await one(
     `INSERT INTO courts (name, description, lat, lng, address, indoor, hoops, surface, lighting, free,
-       water, toilets, parking, shade, fenced, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+       water, toilets, parking, shade, fenced, created_by, guest_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
     [name, description, lat, lng, address, !!indoor, hoops, surface, !!lighting, !!free,
-      !!water, !!toilets, !!parking, !!shade, !!fenced, req.user.id]
+      !!water, !!toilets, !!parking, !!shade, !!fenced, userId, guestName]
   );
   res.status(201).json({ court: await courtWithStats(inserted) });
 });
@@ -190,24 +200,36 @@ router.delete('/:id', requireAuth, async (req, res) => {
   res.json({ message: 'Court deleted' });
 });
 
-// POST /api/courts/:id/reviews — add/update review (auth)
-router.post('/:id/reviews', requireAuth, async (req, res) => {
+// POST /api/courts/:id/reviews — add/update review (logged-in user OR guest with a nickname)
+router.post('/:id/reviews', optionalAuth, async (req, res) => {
   const court = await one('SELECT id FROM courts WHERE id=$1', [req.params.id]);
   if (!court) return res.status(404).json({ error: 'Court not found' });
 
   const { rating, comment = '', tags = [] } = req.body || {};
+  const { userId, guestName } = contributor(req);
+  if (!userId && !guestName)
+    return res.status(401).json({ error: 'Log in or enter a nickname to review' });
   if (!Number.isInteger(rating) || rating < 1 || rating > 5)
     return res.status(400).json({ error: 'Rating must be an integer from 1 to 5' });
   if (!Array.isArray(tags)) return res.status(400).json({ error: 'tags must be an array' });
+  const tagsJson = JSON.stringify(tags.slice(0, 8));
 
-  await run(
-    `INSERT INTO reviews (court_id, user_id, rating, comment, tags)
-       VALUES ($1,$2,$3,$4,$5)
-       ON CONFLICT (court_id, user_id) DO UPDATE SET
-         rating=EXCLUDED.rating, comment=EXCLUDED.comment,
-         tags=EXCLUDED.tags, created_at=now()`,
-    [court.id, req.user.id, rating, comment, JSON.stringify(tags.slice(0, 8))]
-  );
+  if (userId) {
+    // one review per user per court (upsert)
+    await run(
+      `INSERT INTO reviews (court_id, user_id, rating, comment, tags)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (court_id, user_id) DO UPDATE SET
+           rating=EXCLUDED.rating, comment=EXCLUDED.comment, tags=EXCLUDED.tags, created_at=now()`,
+      [court.id, userId, rating, comment, tagsJson]
+    );
+  } else {
+    await run(
+      `INSERT INTO reviews (court_id, user_id, rating, comment, tags, guest_name)
+         VALUES ($1, NULL, $2, $3, $4, $5)`,
+      [court.id, rating, comment, tagsJson, guestName]
+    );
+  }
   res.status(201).json({ message: 'Review submitted' });
 });
 

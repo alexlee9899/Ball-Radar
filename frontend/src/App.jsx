@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
-import { api, assetUrl, getUser, getToken, setSession, clearSession } from './api.js';
+import { api, assetUrl, getUser, getToken, setSession, clearSession, getGuestName, setGuestName } from './api.js';
 
 const SYDNEY_CENTER = { lat: -33.8688, lng: 151.2093 };
 const SYDNEY_BOUNDS = { north: -33.3, south: -34.4, east: 151.7, west: 150.4 };
@@ -306,6 +306,35 @@ function Toast({ toast }) {
   return <div className={'toast toast--' + toast.type}>{toast.msg}</div>;
 }
 
+// ---------- Guest nickname modal ----------
+function GuestNameModal({ initial, onClose, onSave }) {
+  const [name, setName] = useState(initial || '');
+  function submit(e) {
+    e.preventDefault();
+    const v = name.trim();
+    if (v.length < 2) return;
+    onSave(v.slice(0, 40));
+  }
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal auth" onClick={(e) => e.stopPropagation()}>
+        <button className="modal__x" onClick={onClose}>✕</button>
+        <h2 className="neon-title">Pick a nickname</h2>
+        <p className="muted" style={{ margin: '0 0 12px' }}>
+          No account needed — just a name to show on the courts and reviews you add. It’s saved on this device for next time.
+        </p>
+        <form className="form" onSubmit={submit}>
+          <label>Nickname
+            <input value={name} onChange={(e) => setName(e.target.value)} autoFocus
+              placeholder="e.g. CourtHunter" maxLength={40} />
+          </label>
+          <button className="btn btn--primary" disabled={name.trim().length < 2}>Continue</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Auth modal ----------
 function AuthModal({ onClose, onAuthed, notify }) {
   const [mode, setMode] = useState('login'); // login | register | verify | forgot | reset
@@ -557,7 +586,7 @@ const REPORT_TYPES = [
   { v: 'other', label: 'Other' },
 ];
 
-function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, onOpenProfile, requireLogin, notify }) {
+function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, onOpenProfile, requireLogin, requireIdentity, notify }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [review, setReview] = useState({ rating: 0, comment: '', tags: [] });
@@ -585,9 +614,7 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, onO
     setReview((r) => ({ ...r, tags: r.tags.includes(t) ? r.tags.filter((x) => x !== t) : [...r.tags, t] }));
   }
 
-  async function submitReview(e) {
-    e.preventDefault();
-    if (!user) return requireLogin();
+  async function doSubmitReview() {
     if (!review.rating) return notify('error', 'Please choose a rating first');
     setBusy(true);
     try {
@@ -595,6 +622,10 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, onO
       notify('success', 'Review submitted'); await load(); onChanged();
     } catch (err) { notify('error', err.message); }
     finally { setBusy(false); }
+  }
+  function submitReview(e) {
+    e.preventDefault();
+    requireIdentity(doSubmitReview); // logged in OR guest nickname
   }
 
   async function deleteMyReview() {
@@ -978,6 +1009,9 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('ballradar_theme') || 'day');
   const [profileUserId, setProfileUserId] = useState(null);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [guestName, setGuestNameState] = useState(getGuestName());
+  const [guestModalOpen, setGuestModalOpen] = useState(false);
+  const pendingActionRef = useRef(null);
 
   // apply + persist theme
   useEffect(() => {
@@ -1016,10 +1050,23 @@ export default function App() {
 
   const requireLogin = useCallback(() => { setAuthOpen(true); notify('error', 'Please log in first'); }, [notify]);
 
+  // Run an action if the visitor has an identity (logged in OR a guest nickname);
+  // otherwise prompt for a nickname first, then run it.
+  const ensureIdentity = useCallback((action) => {
+    if (user || getGuestName()) { action(); return; }
+    pendingActionRef.current = action;
+    setGuestModalOpen(true);
+  }, [user]);
+
+  function saveGuestName(name) {
+    setGuestName(name); setGuestNameState(name); setGuestModalOpen(false);
+    const act = pendingActionRef.current; pendingActionRef.current = null;
+    if (act) act();
+  }
+
   const handlePick = useCallback((pos) => {
-    if (!user) { setAddMode(false); return requireLogin(); }
-    setAddPos(pos); setAddMode(false); setAddingCourt(true);
-  }, [user, requireLogin]);
+    ensureIdentity(() => { setAddPos(pos); setAddMode(false); setAddingCourt(true); });
+  }, [ensureIdentity]);
 
   function logout() { clearSession(); setUser(null); notify('success', 'Logged out'); }
 
@@ -1051,8 +1098,7 @@ export default function App() {
             className={'btn btn--ghost ' + (addMode ? 'btn--armed' : '')}
             onClick={() => {
               if (addMode) { setAddMode(false); return; }
-              if (!user) return requireLogin();
-              setAddPos(null); setAddingCourt(true);
+              ensureIdentity(() => { setAddPos(null); setAddingCourt(true); });
             }}>
             {addMode ? 'Click the map · Cancel' : '＋ Mark court'}
           </button>
@@ -1067,6 +1113,11 @@ export default function App() {
             <div className="user-chip">
               <span className="userlink" onClick={() => setProfileUserId(user.id)}>👤 {user.username}</span>
               <button className="linkbtn" onClick={logout}>Log out</button>
+            </div>
+          ) : guestName ? (
+            <div className="user-chip">
+              <span className="userlink" onClick={() => setGuestModalOpen(true)} title="Change nickname">🙂 {guestName}</span>
+              <button className="linkbtn" onClick={() => setAuthOpen(true)}>Log in</button>
             </div>
           ) : (
             <button className="btn btn--primary" onClick={() => setAuthOpen(true)}>Log in / Sign up</button>
@@ -1089,11 +1140,19 @@ export default function App() {
           onEdit={(c) => setEditCourt(c)}
           onDeleted={() => { setSelected(null); loadCourts(); }}
           onOpenProfile={(id) => setProfileUserId(id)}
-          requireLogin={requireLogin} notify={notify}
+          requireLogin={requireLogin} requireIdentity={ensureIdentity} notify={notify}
         />
       )}
 
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} onAuthed={setUser} notify={notify} />}
+
+      {guestModalOpen && (
+        <GuestNameModal
+          initial={guestName}
+          onClose={() => { setGuestModalOpen(false); pendingActionRef.current = null; }}
+          onSave={saveGuestName}
+        />
+      )}
 
       {addingCourt && (
         <CourtFormModal

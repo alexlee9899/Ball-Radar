@@ -34,7 +34,7 @@ router.get('/overview', async (_req, res) => {
     'SELECT id, username, email, role, banned, verified, created_at FROM users ORDER BY id DESC LIMIT 6'
   );
   const recentCourts = await all(
-    `SELECT c.id, c.name, c.indoor, c.created_at, u.username AS creator
+    `SELECT c.id, c.name, c.indoor, c.created_at, COALESCE(u.username, c.guest_name) AS creator
        FROM courts c LEFT JOIN users u ON u.id=c.created_by ORDER BY c.id DESC LIMIT 6`
   );
   const signups = await all(
@@ -72,7 +72,7 @@ router.delete('/reports/:id', async (req, res) => {
 router.get('/courts', async (req, res) => {
   const q = `%${(req.query.q || '').toLowerCase()}%`;
   const rows = await all(
-    `SELECT c.id, c.name, c.address, c.indoor, c.lat, c.lng, c.created_at, u.username AS creator,
+    `SELECT c.id, c.name, c.address, c.indoor, c.lat, c.lng, c.created_at, COALESCE(u.username, c.guest_name) AS creator,
        (SELECT COUNT(*) FROM reviews r WHERE r.court_id=c.id) AS reviews,
        (SELECT COUNT(*) FROM photos p WHERE p.court_id=c.id) AS photos,
        (SELECT ROUND(AVG(rating)::numeric,1) FROM reviews r WHERE r.court_id=c.id) AS rating
@@ -110,9 +110,10 @@ router.put('/courts/:id', async (req, res) => {
 router.get('/reviews', async (req, res) => {
   const q = `%${(req.query.q || '').toLowerCase()}%`;
   const rows = await all(
-    `SELECT r.id, r.rating, r.comment, r.created_at, u.username, c.id AS court_id, c.name AS court_name
-       FROM reviews r JOIN users u ON u.id=r.user_id JOIN courts c ON c.id=r.court_id
-       WHERE lower(r.comment) LIKE $1 OR lower(u.username) LIKE $1 OR lower(c.name) LIKE $1
+    `SELECT r.id, r.rating, r.comment, r.created_at, COALESCE(u.username, r.guest_name) AS username,
+       c.id AS court_id, c.name AS court_name
+       FROM reviews r LEFT JOIN users u ON u.id=r.user_id JOIN courts c ON c.id=r.court_id
+       WHERE lower(r.comment) LIKE $1 OR lower(COALESCE(u.username, r.guest_name)) LIKE $1 OR lower(c.name) LIKE $1
        ORDER BY r.id DESC LIMIT 200`,
     [q]
   );

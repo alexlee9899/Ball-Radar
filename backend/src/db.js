@@ -119,6 +119,11 @@ export async function initDb() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS role   TEXT    NOT NULL DEFAULT 'user';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS banned BOOLEAN NOT NULL DEFAULT FALSE;
 
+    -- guest contributions: courts/reviews can be created without an account (nickname only)
+    ALTER TABLE courts  ADD COLUMN IF NOT EXISTS guest_name TEXT;
+    ALTER TABLE reviews ADD COLUMN IF NOT EXISTS guest_name TEXT;
+    ALTER TABLE reviews ALTER COLUMN user_id DROP NOT NULL;
+
     -- admin audit trail
     CREATE TABLE IF NOT EXISTS audit_logs (
       id SERIAL PRIMARY KEY,

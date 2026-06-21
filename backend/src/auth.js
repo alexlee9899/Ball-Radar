@@ -205,6 +205,14 @@ export function requireAuth(req, res, next) {
   }
 }
 
+// Sets req.user if a valid token is present, but does not require one.
+export function optionalAuth(req, _res, next) {
+  const h = req.headers.authorization || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  if (token) { try { req.user = jwt.verify(token, JWT_SECRET); } catch { /* ignore */ } }
+  next();
+}
+
 // Admin guard: valid token + role=admin + not banned (fresh DB check).
 export function requireAdmin(req, res, next) {
   requireAuth(req, res, async () => {
