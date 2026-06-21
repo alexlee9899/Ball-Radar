@@ -11,19 +11,20 @@ const pool = new pg.Pool({
   ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });
 
-// Thin helpers so route code stays compact.
-export function query(text, params) {
+// Thin helpers so route code stays compact. Rows default to `any` (small app;
+// explicit row types aren't worth the churn).
+export function query(text: string, params?: any[]) {
   return pool.query(text, params);
 }
-export async function one(text, params) {
+export async function one<T = any>(text: string, params?: any[]): Promise<T | null> {
   const { rows } = await pool.query(text, params);
-  return rows[0] || null;
+  return (rows[0] as T) ?? null;
 }
-export async function all(text, params) {
+export async function all<T = any>(text: string, params?: any[]): Promise<T[]> {
   const { rows } = await pool.query(text, params);
-  return rows;
+  return rows as T[];
 }
-export async function run(text, params) {
+export async function run(text: string, params?: any[]) {
   return pool.query(text, params); // use result.rowCount / result.rows
 }
 

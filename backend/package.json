@@ -3,16 +3,19 @@
   "version": "1.0.0",
   "description": "Ball Radar — Sydney basketball court sharing platform (backend)",
   "type": "module",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
-    "seed": "node src/seed.js",
-    "migrate:en": "node src/migrate-en.js",
-    "import:courts": "node src/import-courts.js"
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx src/seed.ts",
+    "migrate:en": "tsx src/migrate-en.ts",
+    "import:courts": "tsx src/import-courts.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -23,6 +26,21 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.14",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "tsx": "^4.19.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.7.0",
+    "@types/nodemailer": "^6.4.16",
+    "@types/pg": "^8.11.10",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
   }
 }

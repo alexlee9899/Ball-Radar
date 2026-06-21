@@ -98,7 +98,7 @@ router.post('/register', async (req, res) => {
   let code;
   try {
     code = await createAndSendCode(email, 'verify');
-  } catch (e) {
+  } catch (e: any) {
     console.error('Email send failed:', e.message);
     return res.status(502).json({ error: 'Failed to send verification email, please try again later' });
   }
@@ -147,7 +147,7 @@ router.post('/resend', async (req, res) => {
   let code;
   try {
     code = await createAndSendCode(email, 'verify');
-  } catch (e) {
+  } catch (e: any) {
     console.error('Email send failed:', e.message);
     return res.status(502).json({ error: 'Failed to send verification email, please try again later' });
   }
@@ -167,7 +167,7 @@ router.post('/forgot', async (req, res) => {
   let code;
   try {
     code = await createAndSendCode(email, 'reset');
-  } catch (e) {
+  } catch (e: any) {
     console.error('Email send failed:', e.message);
     return res.status(502).json({ error: 'Failed to send reset email, please try again later' });
   }

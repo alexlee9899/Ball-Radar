@@ -10,11 +10,11 @@ function optionalUser(req) {
   const h = req.headers.authorization || '';
   const token = h.startsWith('Bearer ') ? h.slice(7) : null;
   if (!token) return null;
-  try { return jwt.verify(token, JWT_SECRET); } catch { return null; }
+  try { return jwt.verify(token, JWT_SECRET) as any; } catch { return null; }
 }
 
 function badgesFor(counts) {
-  const b = [];
+  const b: string[] = [];
   if (counts.courts >= 1) b.push('🗺️ Mapper');
   if (counts.courts >= 5) b.push('🏟️ Local Legend');
   if (counts.reviews >= 3) b.push('✍️ Reviewer');
@@ -96,12 +96,12 @@ router.get('/:id', async (req, res) => {
 // POST /api/users/:id/follow
 router.post('/:id/follow', requireAuth, async (req, res) => {
   const target = Number(req.params.id);
-  if (target === req.user.id) return res.status(400).json({ error: 'You cannot follow yourself' });
+  if (target === req.user!.id) return res.status(400).json({ error: 'You cannot follow yourself' });
   if (!(await one('SELECT 1 FROM users WHERE id=$1', [target])))
     return res.status(404).json({ error: 'User not found' });
   await run(
     'INSERT INTO follows (follower_id, following_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-    [req.user.id, target]
+    [req.user!.id, target]
   );
   res.json({ following: true });
 });
@@ -109,7 +109,7 @@ router.post('/:id/follow', requireAuth, async (req, res) => {
 // DELETE /api/users/:id/follow
 router.delete('/:id/follow', requireAuth, async (req, res) => {
   await run('DELETE FROM follows WHERE follower_id=$1 AND following_id=$2',
-    [req.user.id, Number(req.params.id)]);
+    [req.user!.id, Number(req.params.id)]);
   res.json({ following: false });
 });
 

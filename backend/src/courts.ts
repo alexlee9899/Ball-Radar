@@ -8,7 +8,7 @@ import { requireAuth, optionalAuth } from './auth.js';
 
 // Resolve who is creating content: a logged-in user, or a guest with a nickname.
 function contributor(req) {
-  if (req.user) return { userId: req.user.id, guestName: null };
+  if (req.user) return { userId: req.user!.id, guestName: null };
   const guestName = String(req.body?.guestName || '').trim().slice(0, 40);
   return { userId: null, guestName };
 }
@@ -57,7 +57,7 @@ async function courtWithStats(row) {
   );
   const photoRow = await one('SELECT COUNT(*) AS c FROM photos WHERE court_id=$1', [row.id]);
   const tagRows = await all('SELECT tags FROM reviews WHERE court_id=$1', [row.id]);
-  const tagCount = {};
+  const tagCount: Record<string, number> = {};
   for (const r of tagRows) {
     try {
       for (const t of JSON.parse(r.tags || '[]')) tagCount[t] = (tagCount[t] || 0) + 1;
@@ -145,7 +145,7 @@ router.post('/', optionalAuth, async (req, res) => {
 router.put('/:id', requireAuth, async (req, res) => {
   const court = await one('SELECT * FROM courts WHERE id=$1', [req.params.id]);
   if (!court) return res.status(404).json({ error: 'Court not found' });
-  if (court.created_by !== req.user.id)
+  if (court.created_by !== req.user!.id)
     return res.status(403).json({ error: 'You can only edit courts you added' });
 
   const b = req.body || {};
@@ -189,7 +189,7 @@ router.put('/:id', requireAuth, async (req, res) => {
 router.delete('/:id', requireAuth, async (req, res) => {
   const court = await one('SELECT * FROM courts WHERE id=$1', [req.params.id]);
   if (!court) return res.status(404).json({ error: 'Court not found' });
-  if (court.created_by !== req.user.id)
+  if (court.created_by !== req.user!.id)
     return res.status(403).json({ error: 'You can only delete courts you added' });
 
   const files = await all('SELECT filename FROM photos WHERE court_id=$1', [court.id]);
@@ -236,7 +236,7 @@ router.post('/:id/reviews', optionalAuth, async (req, res) => {
 // DELETE /api/courts/:id/reviews — delete own review (auth)
 router.delete('/:id/reviews', requireAuth, async (req, res) => {
   const result = await run('DELETE FROM reviews WHERE court_id=$1 AND user_id=$2',
-    [req.params.id, req.user.id]);
+    [req.params.id, req.user!.id]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'You have not reviewed this court yet' });
   res.json({ message: 'Review deleted' });
 });
@@ -249,7 +249,7 @@ router.post('/:id/photos', requireAuth, upload.single('photo'), async (req, res)
 
   const filename = makeFilename(req.file.originalname);
   await run('INSERT INTO photos (court_id, user_id, filename, data, mime) VALUES ($1,$2,$3,$4,$5)',
-    [court.id, req.user.id, filename, req.file.buffer, req.file.mimetype]);
+    [court.id, req.user!.id, filename, req.file.buffer, req.file.mimetype]);
   res.status(201).json({ url: `/uploads/${filename}` });
 });
 
@@ -259,7 +259,7 @@ router.delete('/:id/photos/:photoId', requireAuth, async (req, res) => {
     [req.params.photoId, req.params.id]);
   if (!photo) return res.status(404).json({ error: 'Photo not found' });
   const court = await one('SELECT created_by FROM courts WHERE id=$1', [req.params.id]);
-  if (photo.user_id !== req.user.id && court?.created_by !== req.user.id)
+  if (photo.user_id !== req.user!.id && court?.created_by !== req.user!.id)
     return res.status(403).json({ error: 'Not allowed to delete this photo' });
 
   try { fs.unlinkSync(path.join(uploadsDir, photo.filename)); } catch {}
@@ -275,7 +275,7 @@ router.post('/:id/reports', requireAuth, async (req, res) => {
   const { type = 'other', note = '' } = req.body || {};
   const t = REPORT_TYPES.includes(type) ? type : 'other';
   await run('INSERT INTO reports (court_id, user_id, type, note) VALUES ($1,$2,$3,$4)',
-    [court.id, req.user.id, t, String(note).slice(0, 300)]);
+    [court.id, req.user!.id, t, String(note).slice(0, 300)]);
   res.status(201).json({ message: 'Report submitted' });
 });
 

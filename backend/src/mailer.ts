@@ -16,7 +16,7 @@ const RESEND_API_KEY =
   ((process.env.SMTP_HOST || '').includes('resend.com') ? process.env.SMTP_PASS : null);
 const useResendHttp = EMAIL_MODE !== 'dev' && !!RESEND_API_KEY;
 
-let transporter = null;
+let transporter: any = null;
 if (EMAIL_MODE === 'smtp' && !useResendHttp) {
   transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,

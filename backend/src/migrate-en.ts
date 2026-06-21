@@ -13,7 +13,7 @@ async function migrate() {
       'UPDATE courts SET name=$1, description=$2, surface=$3 WHERE address=$4',
       [c.name, c.description, c.surface, c.address]
     );
-    updated += result.rowCount;
+    updated += result.rowCount ?? 0;
   }
   console.log(`Updated ${updated} seed courts to English.`);
 }

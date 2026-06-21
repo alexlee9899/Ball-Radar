@@ -13,7 +13,7 @@ async function audit(req, action, targetType, targetId, detail = '') {
     await run(
       `INSERT INTO audit_logs (admin_id, admin_name, action, target_type, target_id, detail)
        VALUES ($1,$2,$3,$4,$5,$6)`,
-      [req.user.id, req.user.username, action, targetType, String(targetId ?? ''), detail]
+      [req.user!.id, req.user!.username, action, targetType, String(targetId ?? ''), detail]
     );
   } catch { /* never block on audit failure */ }
 }
@@ -70,7 +70,7 @@ router.delete('/reports/:id', async (req, res) => {
 
 // ---------- Courts ----------
 router.get('/courts', async (req, res) => {
-  const q = `%${(req.query.q || '').toLowerCase()}%`;
+  const q = `%${String(req.query.q || '').toLowerCase()}%`;
   const rows = await all(
     `SELECT c.id, c.name, c.address, c.indoor, c.lat, c.lng, c.created_at, COALESCE(u.username, c.guest_name) AS creator,
        (SELECT COUNT(*) FROM reviews r WHERE r.court_id=c.id) AS reviews,
@@ -108,7 +108,7 @@ router.put('/courts/:id', async (req, res) => {
 
 // ---------- Reviews ----------
 router.get('/reviews', async (req, res) => {
-  const q = `%${(req.query.q || '').toLowerCase()}%`;
+  const q = `%${String(req.query.q || '').toLowerCase()}%`;
   const rows = await all(
     `SELECT r.id, r.rating, r.comment, r.created_at, COALESCE(u.username, r.guest_name) AS username,
        c.id AS court_id, c.name AS court_name
@@ -146,7 +146,7 @@ router.delete('/photos/:id', async (req, res) => {
 
 // ---------- Users ----------
 router.get('/users', async (req, res) => {
-  const q = `%${(req.query.q || '').toLowerCase()}%`;
+  const q = `%${String(req.query.q || '').toLowerCase()}%`;
   const rows = await all(
     `SELECT u.id, u.username, u.email, u.role, u.banned, u.verified, u.created_at,
        (SELECT COUNT(*) FROM courts c WHERE c.created_by=u.id) AS courts,
@@ -161,7 +161,7 @@ router.get('/users', async (req, res) => {
 router.post('/users/:id/role', async (req, res) => {
   const id = Number(req.params.id);
   const role = req.body?.role === 'admin' ? 'admin' : 'user';
-  if (id === req.user.id && role !== 'admin')
+  if (id === req.user!.id && role !== 'admin')
     return res.status(400).json({ error: 'You cannot remove your own admin role' });
   const r = await run('UPDATE users SET role=$1 WHERE id=$2', [role, id]);
   if (!r.rowCount) return res.status(404).json({ error: 'User not found' });
@@ -171,7 +171,7 @@ router.post('/users/:id/role', async (req, res) => {
 router.post('/users/:id/ban', async (req, res) => {
   const id = Number(req.params.id);
   const banned = !!req.body?.banned;
-  if (id === req.user.id) return res.status(400).json({ error: 'You cannot ban yourself' });
+  if (id === req.user!.id) return res.status(400).json({ error: 'You cannot ban yourself' });
   const target = await one('SELECT role FROM users WHERE id=$1', [id]);
   if (!target) return res.status(404).json({ error: 'User not found' });
   if (target.role === 'admin' && banned) return res.status(400).json({ error: 'Demote the admin before banning' });
@@ -181,7 +181,7 @@ router.post('/users/:id/ban', async (req, res) => {
 });
 router.delete('/users/:id', async (req, res) => {
   const id = Number(req.params.id);
-  if (id === req.user.id) return res.status(400).json({ error: 'You cannot delete yourself' });
+  if (id === req.user!.id) return res.status(400).json({ error: 'You cannot delete yourself' });
   const target = await one('SELECT role FROM users WHERE id=$1', [id]);
   if (!target) return res.status(404).json({ error: 'User not found' });
   if (target.role === 'admin') return res.status(400).json({ error: 'Demote the admin before deleting' });

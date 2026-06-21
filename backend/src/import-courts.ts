@@ -54,8 +54,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function textSearch(params) {
   const u = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
-  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
-  u.searchParams.set('key', KEY);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, String(v));
+  u.searchParams.set("key", KEY as string);
   const res = await fetch(u);
   return res.json();
 }

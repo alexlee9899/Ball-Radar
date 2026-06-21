@@ -10,13 +10,15 @@ RUN npm install
 COPY frontend/ ./
 RUN npm run build      # -> /fe/dist
 
-# Stage 2: backend runtime, also serves the built frontend from ./public
+# Stage 2: backend — compile TypeScript, then serve API + built frontend (./public)
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 COPY backend/package*.json ./
-RUN npm install --omit=dev
+COPY backend/tsconfig.json ./
+RUN npm install                 # includes devDeps (typescript) needed for the build
 COPY backend/ ./
+RUN npm run build               # tsc -> dist/
 COPY --from=frontend /fe/dist ./public
 ENV NODE_ENV=production
 EXPOSE 4000
-CMD ["node", "src/index.js"]
+CMD ["node", "dist/index.js"]
