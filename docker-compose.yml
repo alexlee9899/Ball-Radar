@@ -28,6 +28,7 @@ services:
       DATABASE_URL: postgres://hoop:hoop@db:5432/ballradar
       EMAIL_MODE: ${EMAIL_MODE:-dev}
       JWT_SECRET: ${JWT_SECRET:-ballradar-dev-secret-change-me}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       # Real email sending (Resend SMTP):
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-}

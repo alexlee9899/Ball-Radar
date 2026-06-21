@@ -74,4 +74,21 @@ export const api = {
   leaderboard: () => request('/api/users/leaderboard'),
   follow: (id) => request(`/api/users/${id}/follow`, { method: 'POST' }),
   unfollow: (id) => request(`/api/users/${id}/follow`, { method: 'DELETE' }),
+
+  // ---- admin ----
+  adminOverview: () => request('/api/admin/overview'),
+  adminReports: (status) => request(`/api/admin/reports${status ? `?status=${status}` : ''}`),
+  adminResolveReport: (id) => request(`/api/admin/reports/${id}/resolve`, { method: 'POST' }),
+  adminDeleteReport: (id) => request(`/api/admin/reports/${id}`, { method: 'DELETE' }),
+  adminCourts: (q) => request(`/api/admin/courts${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  adminDeleteCourt: (id) => request(`/api/admin/courts/${id}`, { method: 'DELETE' }),
+  adminReviews: (q) => request(`/api/admin/reviews${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  adminDeleteReview: (id) => request(`/api/admin/reviews/${id}`, { method: 'DELETE' }),
+  adminPhotos: () => request('/api/admin/photos'),
+  adminDeletePhoto: (id) => request(`/api/admin/photos/${id}`, { method: 'DELETE' }),
+  adminUsers: (q) => request(`/api/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  adminSetRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'POST', body: { role } }),
+  adminBan: (id, banned) => request(`/api/admin/users/${id}/ban`, { method: 'POST', body: { banned } }),
+  adminDeleteUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
+  adminAudit: () => request('/api/admin/audit'),
 };

@@ -16,10 +16,23 @@ function genCode() {
 
 function issueToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, username: user.username },
+    { id: user.id, email: user.email, username: user.username, role: user.role || 'user' },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
+}
+
+function publicUser(user) {
+  return { id: user.id, email: user.email, username: user.username, role: user.role || 'user' };
+}
+
+// Promote accounts whose email is in ADMIN_EMAILS (comma-separated) to admin on boot.
+export async function syncAdmins() {
+  const list = (process.env.ADMIN_EMAILS || '')
+    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (!list.length) return;
+  const r = await run('UPDATE users SET role=$1 WHERE lower(email) = ANY($2)', ['admin', list]);
+  if (r.rowCount) console.log(`   Promoted ${r.rowCount} admin account(s) from ADMIN_EMAILS`);
 }
 
 async function createAndSendCode(email, purpose) {
@@ -105,8 +118,9 @@ router.post('/verify', async (req, res) => {
   const user = await one('SELECT * FROM users WHERE email=$1', [email]);
   if (!user) return res.status(404).json({ error: 'User not found' });
   await run('UPDATE users SET verified=TRUE WHERE id=$1', [user.id]);
+  user.verified = true;
 
-  res.json({ token: issueToken(user), user: { id: user.id, email: user.email, username: user.username } });
+  res.json({ token: issueToken(user), user: publicUser(user) });
 });
 
 // POST /api/auth/login  { email, password }
@@ -117,8 +131,10 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Incorrect email or password' });
   if (!user.verified)
     return res.status(403).json({ error: 'Email not verified, please verify first', needVerify: true });
+  if (user.banned)
+    return res.status(403).json({ error: 'This account has been suspended' });
 
-  res.json({ token: issueToken(user), user: { id: user.id, email: user.email, username: user.username } });
+  res.json({ token: issueToken(user), user: publicUser(user) });
 });
 
 // POST /api/auth/resend  { email }
@@ -172,7 +188,8 @@ router.post('/reset', async (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
   await run('UPDATE users SET password_hash=$1, verified=TRUE WHERE id=$2',
     [bcrypt.hashSync(password, 10), user.id]);
-  res.json({ token: issueToken(user), user: { id: user.id, email: user.email, username: user.username } });
+  user.verified = true;
+  res.json({ token: issueToken(user), user: publicUser(user) });
 });
 
 // Middleware
@@ -186,6 +203,16 @@ export function requireAuth(req, res, next) {
   } catch {
     return res.status(401).json({ error: 'Session expired, please log in again' });
   }
+}
+
+// Admin guard: valid token + role=admin + not banned (fresh DB check).
+export function requireAdmin(req, res, next) {
+  requireAuth(req, res, async () => {
+    const u = await one('SELECT id, role, banned FROM users WHERE id=$1', [req.user.id]);
+    if (!u || u.role !== 'admin' || u.banned)
+      return res.status(403).json({ error: 'Admin access required' });
+    next();
+  });
 }
 
 // GET /api/auth/me

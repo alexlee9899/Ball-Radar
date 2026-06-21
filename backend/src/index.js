@@ -5,9 +5,10 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import authRouter from './auth.js';
+import authRouter, { syncAdmins } from './auth.js';
 import courtsRouter, { uploadsDir, servePhoto } from './courts.js';
 import usersRouter from './users.js';
+import adminRouter from './admin.js';
 import { initDb } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,6 +38,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true, name: 'Ball Radar API
 app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/courts', courtsRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/admin', adminRouter);
 
 // Serve the built frontend in production (single-service deploy).
 // FRONTEND_DIST defaults to ../public, where the Docker image copies the Vite build.
@@ -58,6 +60,7 @@ app.use((err, _req, res, _next) => {
 // Ensure schema exists before accepting traffic. Seed data is NOT auto-inserted
 // anymore (prod already has it); bootstrap an empty DB manually with `npm run seed`.
 initDb()
+  .then(() => syncAdmins())
   .catch((err) => console.error('Database init failed:', err))
   .finally(() => {
     app.listen(PORT, () => {
