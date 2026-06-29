@@ -139,4 +139,27 @@ export async function initDb() {
   `);
 }
 
+// Whether PostGIS is available (set by initGeo). When true, the nearby-courts
+// query uses an indexed geospatial search; otherwise it falls back to haversine.
+export let hasPostgis = false;
+
+// Enable PostGIS + a spatial column/index on courts. Best-effort: if the
+// extension isn't available (e.g. plain Postgres in some envs), we log and
+// keep running with the haversine fallback.
+export async function initGeo() {
+  try {
+    await pool.query('CREATE EXTENSION IF NOT EXISTS postgis');
+    await pool.query(`
+      ALTER TABLE courts ADD COLUMN IF NOT EXISTS geom geometry(Point, 4326)
+        GENERATED ALWAYS AS (ST_SetSRID(ST_MakePoint(lng, lat), 4326)) STORED;
+      CREATE INDEX IF NOT EXISTS courts_geom_idx ON courts USING GIST (geom);
+    `);
+    hasPostgis = true;
+    console.log('   PostGIS enabled (geospatial nearby search active)');
+  } catch (err: any) {
+    hasPostgis = false;
+    console.warn('   PostGIS unavailable — using haversine fallback for nearby search:', err.message);
+  }
+}
+
 export default pool;

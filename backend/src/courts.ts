@@ -3,11 +3,11 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { one, all, run } from './db.js';
+import { one, all, run, hasPostgis } from './db.js';
 import { requireAuth, optionalAuth } from './auth.js';
 
 // Resolve who is creating content: a logged-in user, or a guest with a nickname.
-function contributor(req) {
+function contributor(req: any) {
   if (req.user) return { userId: req.user!.id, guestName: null };
   const guestName = String(req.body?.guestName || '').trim().slice(0, 40);
   return { userId: null, guestName };
@@ -86,6 +86,46 @@ router.get('/', async (_req, res) => {
        LEFT JOIN users u ON u.id = c.created_by ORDER BY c.id`
   );
   res.json({ courts: await Promise.all(rows.map(courtWithStats)) });
+});
+
+// GET /api/courts/nearby?lat=&lng=&radius=&limit= — geospatial nearest courts.
+// Uses PostGIS (ST_DWithin + KNN, GiST-indexed) when available, else a SQL
+// haversine fallback. Declared before /:id so "nearby" isn't treated as an id.
+router.get('/nearby', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  const radius = Math.min(Number(req.query.radius) || 5000, 50000); // metres, cap 50km
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng))
+    return res.status(400).json({ error: 'lat and lng are required numbers' });
+
+  let rows;
+  if (hasPostgis) {
+    rows = await all(
+      `SELECT c.*, COALESCE(u.username, c.guest_name) AS creator,
+         ST_Distance(c.geom::geography, ST_SetSRID(ST_MakePoint($2,$1),4326)::geography) AS distance_m
+         FROM courts c LEFT JOIN users u ON u.id = c.created_by
+         WHERE ST_DWithin(c.geom::geography, ST_SetSRID(ST_MakePoint($2,$1),4326)::geography, $3)
+         ORDER BY c.geom <-> ST_SetSRID(ST_MakePoint($2,$1),4326)
+         LIMIT $4`,
+      [lat, lng, radius, limit]
+    );
+  } else {
+    const hav = `6371000 * acos(LEAST(1, cos(radians($1))*cos(radians(c.lat))*cos(radians(c.lng)-radians($2)) + sin(radians($1))*sin(radians(c.lat))))`;
+    rows = await all(
+      `SELECT c.*, COALESCE(u.username, c.guest_name) AS creator, ${hav} AS distance_m
+         FROM courts c LEFT JOIN users u ON u.id = c.created_by
+         WHERE ${hav} <= $3 ORDER BY distance_m LIMIT $4`,
+      [lat, lng, radius, limit]
+    );
+  }
+
+  const courts = await Promise.all(rows.map(async (r: any) => {
+    const c = await courtWithStats(r);
+    delete c.geom;
+    return { ...c, distanceM: Math.round(Number(r.distance_m)) };
+  }));
+  res.json({ courts, engine: hasPostgis ? 'postgis' : 'haversine' });
 });
 
 // GET /api/courts/:id — detail with reviews + photos
