@@ -2,6 +2,22 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { api, assetUrl, getToken, getUser, setSession, clearSession } from './api.js';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '');
+const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+function CountUp({ value, ms = 750 }) {
+  const [n, setN] = useState(reduceMotion() ? value : 0);
+  useEffect(() => {
+    if (reduceMotion()) { setN(value); return; }
+    let raf; const start = performance.now();
+    const tick = (t) => {
+      const p = Math.min(1, (t - start) / ms);
+      setN(Math.round(value * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, ms]);
+  return <>{n}</>;
+}
 
 function useToast() {
   const [toast, setToast] = useState(null);
@@ -55,7 +71,7 @@ function Dashboard({ data }) {
     <div>
       <div className="metric-grid">
         {metrics.map(([label, val]) => (
-          <div className="metric" key={label}><b>{val}</b><span>{label}</span></div>
+          <div className="metric" key={label}><b><CountUp value={val} /></b><span>{label}</span></div>
         ))}
       </div>
       <div className="admin-card">

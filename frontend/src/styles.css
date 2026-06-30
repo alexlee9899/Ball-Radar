@@ -738,3 +738,31 @@ kbd { background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px
   }
 }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+
+/* ===== Phase 3 polish: rating ring · splash ===== */
+
+/* Circular rating gauge */
+.rating-ring { position: relative; width: 62px; height: 62px; }
+.rating-ring .ring-bg { fill: none; stroke: var(--line); stroke-width: 6; }
+.rating-ring .ring-fg { fill: none; stroke: var(--cyan); stroke-width: 6; stroke-linecap: round;
+  filter: drop-shadow(0 0 6px var(--cyan)); transition: stroke-dashoffset .9s cubic-bezier(.2,.8,.2,1); }
+.rating-ring__c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.rating-ring__c b { font-family: 'Saira Condensed', sans-serif; font-size: 20px; line-height: 1; color: var(--text); }
+.rating-ring__c span { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+/* First-load splash */
+.splash {
+  position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; gap: 0;
+  background: var(--body-grad), var(--bg);
+  animation: splash-fade 1.3s forwards;
+}
+.splash-ball { font-size: 64px; animation: ball-bounce 1s cubic-bezier(.3,.7,.4,1) infinite; }
+.splash-name { margin-top: 14px; font-size: 26px; letter-spacing: 3px; }
+.splash-radar { position: absolute; display: grid; place-items: center; }
+.splash-radar span { position: absolute; width: 120px; height: 120px; border-radius: 50%;
+  border: 2px solid var(--elec); opacity: 0; animation: radar-ping 1.6s ease-out infinite; }
+.splash-radar span:nth-child(2) { animation-delay: .35s; }
+.splash-radar span:nth-child(3) { animation-delay: .7s; }
+@keyframes ball-bounce { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-22px) rotate(180deg); } }
+@keyframes splash-fade { 0%,72% { opacity: 1; visibility: visible; } 100% { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .splash { display: none; } }

@@ -10,6 +10,42 @@ function boom() {
   confetti({ particleCount: 90, spread: 70, origin: { y: 0.7 }, colors: ['#ff6b35', '#ffc83d', '#1fd1ff', '#ff9a6b'] });
 }
 
+const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+// Animate an integer from 0 → value with an ease-out curve.
+function useCountUp(target, ms = 750) {
+  const [n, setN] = useState(reduceMotion() ? target : 0);
+  useEffect(() => {
+    if (reduceMotion()) { setN(target); return; }
+    let raf; const start = performance.now();
+    const tick = (t) => {
+      const p = Math.min(1, (t - start) / ms);
+      setN(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return n;
+}
+function CountUp({ value }) { return <>{useCountUp(value)}</>; }
+
+// Circular rating gauge (avg out of 5).
+function RatingRing({ value, count }) {
+  const r = 26, circ = 2 * Math.PI * r;
+  const off = circ * (1 - (value || 0) / 5);
+  return (
+    <div className="rating-ring" title={`${value ?? 'No'} average · ${count} reviews`}>
+      <svg viewBox="0 0 64 64" width="62" height="62">
+        <circle cx="32" cy="32" r={r} className="ring-bg" />
+        <circle cx="32" cy="32" r={r} className="ring-fg" strokeDasharray={circ} strokeDashoffset={off}
+          transform="rotate(-90 32 32)" />
+      </svg>
+      <div className="rating-ring__c"><b>{value ?? '—'}</b><span>{count} rev</span></div>
+    </div>
+  );
+}
+
 const SYDNEY_CENTER = { lat: -33.8688, lng: 151.2093 };
 const SYDNEY_BOUNDS = { north: -33.3, south: -34.4, east: 151.7, west: 150.4 };
 const GMAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
@@ -700,8 +736,7 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, onO
             <span className={'pill ' + (c.indoor ? 'pill--indoor' : 'pill--outdoor')}>{c.indoor ? 'Indoor' : 'Outdoor'}</span>
             <h2 className="neon-title">{c.name}</h2>
             <div className="detail__meta">
-              <Stars value={Math.round(c.avgRating || 0)} />
-              <span>{c.avgRating ?? 'No rating'}{c.reviewCount ? ` · ${c.reviewCount} reviews` : ''}</span>
+              <RatingRing value={c.avgRating} count={c.reviewCount} />
             </div>
             {c.address && <p className="detail__addr">📍 {c.address}</p>}
             <div className="owner-actions">
@@ -980,7 +1015,7 @@ function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc })
         )}
       </div>
 
-      <div className="count">{list.length} / {courts.length} courts</div>
+      <div className="count">{list.length} / <CountUp value={courts.length} /> courts</div>
 
       <ul className="court-list">
         {list.map((c, i) => (
@@ -1080,6 +1115,15 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [radar, setRadar] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [splash, setSplash] = useState(
+    () => !sessionStorage.getItem('ballradar_splashed') && !reduceMotion()
+  );
+  useEffect(() => {
+    if (!splash) return;
+    sessionStorage.setItem('ballradar_splashed', '1');
+    const t = setTimeout(() => setSplash(false), 1300);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line
 
   // ⌘K / Ctrl+K opens the command palette
   useEffect(() => {
@@ -1256,6 +1300,14 @@ export default function App() {
       )}
 
       {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
+
+      {splash && (
+        <div className="splash" aria-hidden="true">
+          <div className="splash-radar"><span></span><span></span><span></span></div>
+          <div className="splash-ball">🏀</div>
+          <div className="splash-name neon-title">BALL RADAR</div>
+        </div>
+      )}
 
       {addingCourt && (
         <CourtFormModal
