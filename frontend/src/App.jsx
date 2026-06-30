@@ -1,7 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
+import confetti from 'canvas-confetti';
 import { api, assetUrl, getUser, getToken, setSession, clearSession, getGuestName, setGuestName } from './api.js';
+
+// Celebratory burst in the brand colors (used on guest/user contributions).
+function boom() {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  confetti({ particleCount: 90, spread: 70, origin: { y: 0.7 }, colors: ['#ff6b35', '#ffc83d', '#1fd1ff', '#ff9a6b'] });
+}
 
 const SYDNEY_CENTER = { lat: -33.8688, lng: 151.2093 };
 const SYDNEY_BOUNDS = { north: -33.3, south: -34.4, east: 151.7, west: 150.4 };
@@ -115,8 +122,9 @@ const fmtDist = (km) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1
 
 function markerIcon(google, indoor, active, theme) {
   const day = theme === 'day';
-  const color = day ? (indoor ? '#56544c' : '#2c2c28') : (indoor ? '#ff2bd6' : '#00f0ff');
-  const inner = day ? '#fbfaf7' : '#04121a';
+  // outdoor = basketball orange, indoor = electric cyan/teal — matches the UI accents
+  const color = day ? (indoor ? '#0ea5c4' : '#f2542d') : (indoor ? '#1fd1ff' : '#ff6b35');
+  const inner = day ? '#ffffff' : '#0b0e14';
   const r = active ? 8 : 6.5;
   const glow = active ? 13 : 10;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
@@ -134,8 +142,8 @@ function markerIcon(google, indoor, active, theme) {
 
 function userIcon(google, theme) {
   const day = theme === 'day';
-  const color = day ? '#2c2c28' : '#2bffb0';
-  const inner = day ? '#fbfaf7' : '#04121a';
+  const color = day ? '#15803d' : '#34e0a1';   // your location = green (distinct from courts)
+  const inner = day ? '#ffffff' : '#0b0e14';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
     <circle cx="20" cy="20" r="12" fill="${color}" opacity="0.18"/>
     <circle cx="20" cy="20" r="6" fill="${color}" stroke="${inner}" stroke-width="2"/>
@@ -210,7 +218,7 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
       const active = c.id === selectedId;
       let m = markersRef.current.get(c.id);
       if (!m) {
-        m = new google.maps.Marker({ position: { lat: c.lat, lng: c.lng } });
+        m = new google.maps.Marker({ position: { lat: c.lat, lng: c.lng }, animation: google.maps.Animation.DROP });
         m.addListener('click', () => onSelectRef.current(c));
         markersRef.current.set(c.id, m);
       }
@@ -218,6 +226,11 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
       m.setIcon(markerIcon(google, c.indoor, active, theme));
       m.setZIndex(active ? 999 : 1);
       m.setTitle(c.name + (c.avgRating ? ` · ★${c.avgRating}` : ''));
+      // bounce the selected marker briefly
+      if (active) {
+        m.setAnimation(google.maps.Animation.BOUNCE);
+        setTimeout(() => { try { m.setAnimation(null); } catch {} }, 1400);
+      }
     }
     for (const [id, m] of markersRef.current) {
       if (!seen.has(id)) { markersRef.current.delete(id); }
@@ -619,6 +632,7 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, onO
     setBusy(true);
     try {
       await api.addReview(courtId, review);
+      boom();
       notify('success', 'Review submitted'); await load(); onChanged();
     } catch (err) { notify('error', err.message); }
     finally { setBusy(false); }
@@ -969,8 +983,9 @@ function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc })
       <div className="count">{list.length} / {courts.length} courts</div>
 
       <ul className="court-list">
-        {list.map((c) => (
-          <li key={c.id} className={'court-card ' + (c.id === selectedId ? 'on' : '')} onClick={() => onSelect(c)}>
+        {list.map((c, i) => (
+          <li key={c.id} className={'court-card reveal ' + (c.id === selectedId ? 'on' : '')}
+            style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }} onClick={() => onSelect(c)}>
             <div className="court-card__top">
               <b>{c.name}</b>
               <span className={'pill ' + (c.indoor ? 'pill--indoor' : 'pill--outdoor')}>{c.indoor ? 'Indoor' : 'Outdoor'}</span>
@@ -994,6 +1009,54 @@ function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc })
   );
 }
 
+// ---------- Command palette (⌘K) ----------
+function CommandPalette({ courts, onClose, run }) {
+  const [q, setQ] = useState('');
+  const [idx, setIdx] = useState(0);
+  const actions = [
+    { id: 'mark', icon: '＋', label: 'Mark a court' },
+    { id: 'nearby', icon: '📍', label: 'Find courts near me' },
+    { id: 'leaders', icon: '🏆', label: 'Leaderboard' },
+    { id: 'theme', icon: '🌓', label: 'Toggle day / night' },
+    { id: 'about', icon: 'ℹ️', label: 'About the developer' },
+  ];
+  const ql = q.trim().toLowerCase();
+  const hits = ql
+    ? (courts || []).filter((c) => `${c.name} ${c.address}`.toLowerCase().includes(ql)).slice(0, 6)
+    : (courts || []).slice(0, 5);
+  const items = [
+    ...actions.filter((a) => !ql || a.label.toLowerCase().includes(ql)).map((a) => ({ type: 'action', ...a })),
+    ...hits.map((c) => ({ type: 'court', id: 'court-' + c.id, label: c.name, sub: c.address, court: c })),
+  ];
+  useEffect(() => { setIdx(0); }, [q]);
+
+  function onKey(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(i + 1, items.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (items[idx]) run(items[idx]); }
+    else if (e.key === 'Escape') { onClose(); }
+  }
+
+  return (
+    <div className="modal-overlay cmdk-overlay" onClick={onClose}>
+      <div className="cmdk" onClick={(e) => e.stopPropagation()}>
+        <input autoFocus className="cmdk-input" placeholder="Search courts or jump to…" value={q}
+          onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} />
+        <ul className="cmdk-list">
+          {items.map((it, i) => (
+            <li key={it.id} className={'cmdk-item ' + (i === idx ? 'on' : '')}
+              onMouseEnter={() => setIdx(i)} onMouseDown={() => run(it)}>
+              <span className="cmdk-ico">{it.type === 'court' ? '🏀' : it.icon}</span>
+              <span className="cmdk-label">{it.label}{it.sub ? <em>{it.sub}</em> : null}</span>
+            </li>
+          ))}
+          {items.length === 0 && <li className="cmdk-empty">No matches</li>}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 // ---------- App ----------
 export default function App() {
   const [user, setUser] = useState(getUser());
@@ -1014,6 +1077,18 @@ export default function App() {
   const [guestName, setGuestNameState] = useState(getGuestName());
   const [guestModalOpen, setGuestModalOpen] = useState(false);
   const pendingActionRef = useRef(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [radar, setRadar] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+
+  // ⌘K / Ctrl+K opens the command palette
+  useEffect(() => {
+    const h = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen((v) => !v); }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
 
   // apply + persist theme
   useEffect(() => {
@@ -1048,7 +1123,14 @@ export default function App() {
   const selectCourt = useCallback((c) => {
     setSelected(c);
     setFlyTarget({ lat: c.lat, lng: c.lng, _t: Date.now() });
+    setNavOpen(false); // close the mobile drawer on selection
   }, []);
+
+  function toggleTheme() {
+    const next = theme === 'day' ? 'night' : 'day';
+    if (document.startViewTransition) document.startViewTransition(() => setTheme(next));
+    else setTheme(next);
+  }
 
   const requireLogin = useCallback(() => { setAuthOpen(true); notify('error', 'Please log in first'); }, [notify]);
 
@@ -1080,6 +1162,7 @@ export default function App() {
         setUserLoc(loc);
         setFlyTarget({ ...loc, _t: Date.now() });
         setFilters((f) => ({ ...f, sort: 'dist' }));
+        setRadar(true); setTimeout(() => setRadar(false), 1900); // radar sweep
         notify('success', 'Located — sorted by distance');
       },
       () => notify('error', 'Location failed or denied'),
@@ -1087,8 +1170,18 @@ export default function App() {
     );
   }
 
+  function runCommand(it) {
+    setPaletteOpen(false);
+    if (it.type === 'court') { selectCourt(it.court); return; }
+    if (it.id === 'mark') ensureIdentity(() => { setAddPos(null); setAddingCourt(true); });
+    else if (it.id === 'nearby') locateMe();
+    else if (it.id === 'leaders') setLeaderboardOpen(true);
+    else if (it.id === 'theme') toggleTheme();
+    else if (it.id === 'about') window.location.href = '/about';
+  }
+
   return (
-    <div className={'app ' + (addMode ? 'is-picking' : '')}>
+    <div className={'app ' + (addMode ? 'is-picking' : '') + (navOpen ? ' nav-open' : '')}>
       <Sidebar
         courts={courts} filters={filters} setFilters={setFilters}
         selectedId={selected?.id} onSelect={selectCourt} userLoc={userLoc}
@@ -1096,6 +1189,7 @@ export default function App() {
 
       <main className="map-wrap">
         <div className="topbar">
+          <button className="btn btn--ghost nav-toggle" aria-label="Menu" onClick={() => setNavOpen((v) => !v)}>☰</button>
           <button
             className={'btn btn--ghost ' + (addMode ? 'btn--armed' : '')}
             onClick={() => {
@@ -1105,10 +1199,10 @@ export default function App() {
             {addMode ? 'Click the map · Cancel' : '＋ Mark court'}
           </button>
           <button className="btn btn--ghost" onClick={locateMe}>📍 Nearby</button>
-          <button className="btn btn--ghost" onClick={() => setLeaderboardOpen(true)}>🏆 Leaders</button>
-          <button className="btn btn--ghost" onClick={() => setTheme((t) => (t === 'day' ? 'night' : 'day'))}
-            title="Toggle day / night">
-            {theme === 'day' ? '🌙 Night' : '☀️ Day'}
+          <button className="btn btn--ghost topbar-hide" onClick={() => setPaletteOpen(true)}>🔍 Search <kbd>⌘K</kbd></button>
+          <button className="btn btn--ghost topbar-hide" onClick={() => setLeaderboardOpen(true)}>🏆 Leaders</button>
+          <button className="btn btn--ghost" title="Toggle day / night" onClick={toggleTheme}>
+            {theme === 'day' ? '🌙' : '☀️'}
           </button>
           <div className="spacer" />
           {user ? (
@@ -1132,6 +1226,7 @@ export default function App() {
         />
 
         {addMode && <div className="pick-hint">Click anywhere on the map to mark a new court (or locate by address in the dialog)</div>}
+        {radar && <div className="radar" aria-hidden="true"><span></span><span></span><span></span></div>}
       </main>
 
       {selected && (
@@ -1156,12 +1251,18 @@ export default function App() {
         />
       )}
 
+      {paletteOpen && (
+        <CommandPalette courts={courts} onClose={() => setPaletteOpen(false)} run={runCommand} />
+      )}
+
+      {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
+
       {addingCourt && (
         <CourtFormModal
           key={addPos ? `${addPos.lat},${addPos.lng}` : 'new'}
           pos={addPos}
           onClose={() => { setAddingCourt(false); setAddPos(null); }}
-          onSaved={(court) => { loadCourts(); selectCourt(court); }}
+          onSaved={(court) => { boom(); loadCourts(); selectCourt(court); }}
           onPickOnMap={() => { setAddingCourt(false); setAddMode(true); }}
           notify={notify}
         />
