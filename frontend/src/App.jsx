@@ -988,6 +988,8 @@ function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc })
         ))}
         {list.length === 0 && <li className="empty">No courts match your filters.</li>}
       </ul>
+
+      <a className="sidebar-about" href="/about">ℹ️ About the developer</a>
     </aside>
   );
 }

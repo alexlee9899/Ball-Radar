@@ -525,6 +525,60 @@ h1, h2, h3 { font-family: 'Orbitron', sans-serif; margin: 0; letter-spacing: 0.5
 
 @media (max-width: 720px) { .admin-2col { grid-template-columns: 1fr; } }
 
+/* ---------- sidebar about link ---------- */
+.sidebar-about {
+  display: block; text-align: center; padding: 12px; margin: 4px 10px 10px;
+  color: var(--muted); text-decoration: none; font-weight: 600; font-size: 13px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2);
+}
+.sidebar-about:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+
+/* ---------- about / developer page ---------- */
+.about { min-height: 100vh; background: var(--body-grad), var(--bg); color: var(--text); }
+.about-top { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 10; }
+.about-top .brand { text-decoration: none; }
+.about-body { max-width: 1000px; margin: 0 auto; padding: 28px 20px 40px; }
+
+.about-hero { display: flex; gap: 24px; align-items: flex-start; margin-bottom: 24px; }
+.about-avatar {
+  flex: none; width: 96px; height: 96px; border-radius: 20px;
+  display: grid; place-items: center; font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 34px;
+  color: var(--on-accent); background: var(--cyan); box-shadow: var(--glow);
+}
+.about-name { font-size: 30px; margin-bottom: 4px; }
+.about-role { color: var(--cyan-dim); font-weight: 600; margin: 0 0 12px; }
+.about-bio { color: var(--text); opacity: .9; line-height: 1.6; max-width: 70ch; margin: 0 0 16px; }
+.about-links { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.about-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 28px; }
+.about-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.about-tab { background: var(--bg-2); border: 1px solid var(--line); color: var(--muted); padding: 8px 16px; border-radius: 999px; cursor: pointer; font: inherit; font-weight: 600; }
+.about-tab.on { background: var(--cyan); color: var(--on-accent); box-shadow: var(--glow); }
+
+.skill-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.exp-list { display: flex; flex-direction: column; gap: 12px; }
+.exp-card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.exp-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.exp-head b { font-size: 15px; }
+.exp-company { color: var(--cyan-dim); font-weight: 600; font-size: 13px; margin: 2px 0 8px; }
+.exp-card ul { margin: 0; padding-left: 18px; color: var(--text); opacity: .9; line-height: 1.55; }
+.exp-card li { margin-bottom: 4px; }
+
+.about-section-title { font-family: 'Orbitron', sans-serif; color: var(--cyan); text-shadow: var(--glow); font-size: 22px; margin: 0 0 16px; }
+.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.proj-card { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; transition: transform .12s, border-color .15s, box-shadow .15s; }
+.proj-card:hover { transform: translateY(-3px); border-color: var(--cyan-dim); box-shadow: var(--glow); }
+.proj-card.is-featured { border-color: var(--cyan); }
+.proj-badge { position: absolute; top: 14px; right: 14px; background: var(--cyan); color: var(--on-accent); border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 700; font-family: 'Orbitron', sans-serif; }
+.proj-card h4 { font-size: 18px; margin: 0 0 8px; }
+.proj-card > p { color: var(--text); opacity: .85; line-height: 1.55; font-size: 14px; flex: 1; margin: 0 0 12px; }
+.proj-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.proj-links { display: flex; gap: 8px; }
+
+.about-foot { text-align: center; padding: 24px; border-top: 1px solid var(--line); }
+
+@media (max-width: 600px) { .about-hero { flex-direction: column; } }
+
 /* ---------- responsive ---------- */
 @media (max-width: 820px) {
   .app { grid-template-columns: 1fr; }
