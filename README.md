@@ -1,5 +1,7 @@
 # 🏀 Ball Radar
 
+[![CI](https://github.com/alexlee9899/Ball-Radar/actions/workflows/ci.yml/badge.svg)](https://github.com/alexlee9899/Ball-Radar/actions/workflows/ci.yml)
+
 **Find a hoop. Rate the vibe. Never show up to a locked gate again.**
 
 Ball Radar is a court-sharing map for Sydney ballers. Drop pins on real courts, rate them, leave reviews, slap on tags like `Lights` or `Competitive`, and upload photos so the next person knows whether they're walking into a pristine hardwood floor or a rim with no net and a suspicious puddle. Think of it as Yelp, but exclusively for places to hoop — and with a cyberpunk paint job.
@@ -103,6 +105,18 @@ ball-radar/
 | POST/PUT/DELETE | `/api/courts/:id` | Add / edit / delete a court |
 | POST/DELETE | `/api/courts/:id/reviews` | Leave / remove your review |
 | POST/DELETE | `/api/courts/:id/photos` | Upload / delete a photo |
+| GET | `/api/courts/nearby?lat=&lng=&radius=` | Nearest courts (PostGIS, haversine fallback) |
+
+## 🧪 Tests & CI
+
+The backend ships an integration suite (Vitest + Supertest) covering auth, courts, the geospatial `nearby` endpoint, and the admin guard.
+
+```bash
+cd backend
+npm test          # spins up a throwaway embedded Postgres automatically
+```
+
+Set `DATABASE_URL` to run against an existing database instead (this is how CI runs it, against a PostGIS service container so the spatial path is exercised). Every push and PR runs `typecheck → tests` for the backend and a production `build` for the frontend via GitHub Actions — see the badge up top.
 
 ---
 

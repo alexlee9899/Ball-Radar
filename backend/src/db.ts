@@ -162,4 +162,9 @@ export async function initGeo() {
   }
 }
 
+// Close the pool (used by the test harness for a clean teardown).
+export async function closePool() {
+  await pool.end();
+}
+
 export default pool;
