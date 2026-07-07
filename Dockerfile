@@ -15,7 +15,7 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 COPY backend/package*.json ./
 COPY backend/tsconfig.json ./
-RUN npm install                 # includes devDeps (typescript) needed for the build
+RUN npm install --omit=optional # devDeps (typescript) for the build; skips test-only embedded-postgres binaries
 COPY backend/ ./
 RUN npm run build               # tsc -> dist/
 COPY --from=frontend /fe/dist ./public

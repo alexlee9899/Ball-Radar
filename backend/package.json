@@ -15,6 +15,7 @@
     "seed": "tsx src/seed.ts",
     "migrate:en": "tsx src/migrate-en.ts",
     "import:courts": "tsx src/import-courts.ts",
+    "import:osm": "tsx src/import-osm.ts",
     "test": "vitest run"
   },
   "dependencies": {

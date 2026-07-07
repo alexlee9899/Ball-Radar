@@ -55,37 +55,37 @@ const PROJECTS = [
     live: '/', git: 'https://github.com/alexlee9899/Ball-Radar',
   },
   {
-    title: 'KDS Real-time System',
+    title: 'KDS Real-time System', img: '/images/projects/KDS.png',
     desc: 'High-performance Kitchen Display System for commercial kitchens, with sub-second order sync over custom TCP and Socket.IO.',
     tags: ['Real-time', 'React Native', 'Node.js', 'Socket.IO'],
     git: 'https://github.com/alexlee9899/KDS', live: '',
   },
   {
-    title: 'Achoio',
+    title: 'Achoio', img: '/images/projects/achoio.png',
     desc: 'Collaboration platform for speech-synthesis researchers to manage voice projects, rate audio, and feed high-quality feedback into AI model tuning.',
     tags: ['Machine Learning', 'React', 'FastAPI', 'shadcn/ui'],
     git: '', live: 'https://www.achoio.com/',
   },
   {
-    title: 'VTGMAMA E-commerce',
+    title: 'VTGMAMA E-commerce', img: '/images/projects/VTG.png',
     desc: 'Scalable e-commerce platform built from scratch: product listing, checkout, admin dashboard, and auth.',
     tags: ['Next.js 15', 'FastAPI', 'MongoDB'],
     git: 'https://github.com/haoweilou/OnlineShop', live: 'https://vtgmama.vercel.app/',
   },
   {
-    title: 'Game-Hub',
+    title: 'Game-Hub', img: '/images/projects/Gamehub.png',
     desc: 'Game discovery platform with search, filtering, and sorting, integrated with the RAWG game API.',
     tags: ['React', 'TypeScript', 'Chakra UI'],
     git: 'https://github.com/alexlee9899/game-hub-Third-Party-API-', live: 'https://game-hub-phi-liard.vercel.app/',
   },
   {
-    title: 'Jobpin AI Subscription',
+    title: 'Jobpin AI Subscription', img: '/images/projects/JobPin.png',
     desc: 'Subscription pricing & billing system with a responsive plan-management UI and a Dockerized, CI/CD-deployed backend.',
     tags: ['Nest.js', 'MongoDB', 'Docker', 'CI/CD'],
     git: '', live: '',
   },
   {
-    title: 'Personal Website',
+    title: 'Personal Website', img: '/images/projects/3.png',
     desc: 'Responsive personal portfolio with dark theme, dynamic content, and a contact form.',
     tags: ['Next.js', 'Tailwind CSS', 'Resend'],
     git: 'https://github.com/alexlee9899/AlexLee---PersonalWeb', live: 'https://alexlee-web.vercel.app/',
@@ -171,6 +171,11 @@ export default function About() {
         <section className="proj-grid">
           {PROJECTS.map((p) => (
             <div key={p.title} className={'proj-card' + (p.featured ? ' is-featured' : '')}>
+              <div className={'proj-thumb' + (p.img ? '' : ' proj-thumb--brand')}>
+                {p.img
+                  ? <img src={p.img} alt={p.title} loading="lazy" />
+                  : <span className="proj-thumb__ph">🏀</span>}
+              </div>
               {p.featured && <span className="proj-badge">This app</span>}
               <h4>{p.title}</h4>
               <p>{p.desc}</p>

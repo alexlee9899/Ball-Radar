@@ -4,9 +4,10 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
-# Install deps first for layer caching
+# Install deps first for layer caching. --omit=optional skips embedded-postgres'
+# native binaries (test-only; the app never imports it) so the image stays lean.
 COPY package*.json ./
-RUN npm install
+RUN npm install --omit=optional
 
 # App source (overridden by bind mount in docker-compose dev)
 COPY . .
