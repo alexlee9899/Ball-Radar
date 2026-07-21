@@ -133,15 +133,6 @@ function loadGoogle() {
   return _loaderPromise;
 }
 
-async function geocodeAddress(address) {
-  const google = await loadGoogle();
-  const geocoder = new google.maps.Geocoder();
-  const { results } = await geocoder.geocode({ address, bounds: SYDNEY_BOUNDS, region: 'AU' });
-  if (!results?.length) throw new Error('Address not found');
-  const loc = results[0].geometry.location;
-  return { lat: loc.lat(), lng: loc.lng(), formatted: results[0].formatted_address };
-}
-
 // ---- Google Places (Autocomplete) ----
 let _autoSvc = null, _placesSvc = null, _placesToken = null;
 async function ensurePlaces() {
@@ -316,30 +307,46 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
     });
   }, [theme, status]);
 
-  // sync court markers (managed by the clusterer) + the selection ping halo
+  // create / remove markers when the court set changes (clusterer rebuild is costly,
+  // so selection changes are handled separately below)
   useEffect(() => {
     const google = googleRef.current, clusterer = clustererRef.current;
     if (!google || !clusterer) return;
     const seen = new Set();
+    let changed = false;
     for (const c of courts) {
       seen.add(c.id);
-      const active = c.id === selectedId;
       let m = markersRef.current.get(c.id);
       if (!m) {
         m = new google.maps.Marker({ position: { lat: c.lat, lng: c.lng } });
         m.addListener('click', () => onSelectRef.current(c));
+        m.setIcon(markerIcon(google, c.indoor, false));
         markersRef.current.set(c.id, m);
+        changed = true;
       }
       m.setPosition({ lat: c.lat, lng: c.lng });
-      m.setIcon(markerIcon(google, c.indoor, active));
-      m.setZIndex(active ? 999 : 1);
       m.setTitle(c.name + (c.avgRating ? ` · ★${c.avgRating}` : ''));
     }
     for (const [id, m] of markersRef.current) {
-      if (!seen.has(id)) { m.setMap(null); markersRef.current.delete(id); }
+      if (!seen.has(id)) { m.setMap(null); markersRef.current.delete(id); changed = true; }
     }
-    clusterer.clearMarkers();
-    clusterer.addMarkers(Array.from(markersRef.current.values()));
+    if (changed) {
+      clusterer.clearMarkers();
+      clusterer.addMarkers(Array.from(markersRef.current.values()));
+    }
+  }, [courts, status]);
+
+  // selection / theme → repaint icons and move the ping halo
+  useEffect(() => {
+    const google = googleRef.current;
+    if (!google) return;
+    for (const c of courts) {
+      const m = markersRef.current.get(c.id);
+      if (!m) continue;
+      const active = c.id === selectedId;
+      m.setIcon(markerIcon(google, c.indoor, active));
+      m.setZIndex(active ? 999 : 1);
+    }
     const halo = haloRef.current;
     if (!halo) return;
     const sel = courts.find((c) => c.id === selectedId);
