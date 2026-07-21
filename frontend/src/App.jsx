@@ -7,7 +7,7 @@ import { api, assetUrl, getUser, getToken, setSession, clearSession, getGuestNam
 // Celebratory burst in the brand colors (used on guest/user contributions).
 function boom() {
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-  confetti({ particleCount: 90, spread: 70, origin: { y: 0.7 }, colors: ['#ff6b35', '#ffc83d', '#1fd1ff', '#ff9a6b'] });
+  confetti({ particleCount: 90, spread: 70, origin: { y: 0.7 }, colors: ['#E1571F', '#F2894A', '#C24A18', '#2C7A72'] });
 }
 
 const reduceMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -30,18 +30,47 @@ function useCountUp(target, ms = 750) {
 }
 function CountUp({ value }) { return <>{useCountUp(value)}</>; }
 
-// Circular rating gauge (avg out of 5).
-function RatingRing({ value, count }) {
-  const r = 26, circ = 2 * Math.PI * r;
+// Brand mark — the CSS basketball from the design, redrawn as an SVG:
+// radial-lit sphere with four seams (vertical, horizontal, two outward-bowing arcs).
+function BallMark({ size = 36 }) {
+  return (
+    <svg className="ballmark" width={size} height={size} viewBox="0 0 36 36" aria-hidden="true">
+      <defs>
+        <radialGradient id="brBall" cx="34%" cy="28%" r="82%">
+          <stop offset="0%" stopColor="#F2894A" />
+          <stop offset="56%" stopColor="#E1571F" />
+          <stop offset="100%" stopColor="#C4481A" />
+        </radialGradient>
+        <clipPath id="brBallClip"><circle cx="18" cy="18" r="18" /></clipPath>
+      </defs>
+      <g clipPath="url(#brBallClip)">
+        <circle cx="18" cy="18" r="18" fill="url(#brBall)" />
+        <g fill="none" stroke="rgba(40,22,10,.82)" strokeWidth="1.6">
+          <path d="M18 0V36M0 18H36" />
+          <ellipse cx="-4.7" cy="18" rx="15.5" ry="25.2" />
+          <ellipse cx="40.7" cy="18" rx="15.5" ry="25.2" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+// Rating dial for the detail panel. Deliberately monochrome — the detail panel
+// carries no accent orange (see the handoff).
+function RatingDial({ value, count }) {
+  const r = 24, circ = 2 * Math.PI * r;
   const off = circ * (1 - (value || 0) / 5);
   return (
-    <div className="rating-ring" title={`${value ?? 'No'} average · ${count} reviews`}>
-      <svg viewBox="0 0 64 64" width="62" height="62">
-        <circle cx="32" cy="32" r={r} className="ring-bg" />
-        <circle cx="32" cy="32" r={r} className="ring-fg" strokeDasharray={circ} strokeDashoffset={off}
-          transform="rotate(-90 32 32)" />
+    <div className="dial" title={`${value ?? 'No'} average · ${count} reviews`}>
+      <svg viewBox="0 0 52 52" width="52" height="52" aria-hidden="true">
+        <circle cx="26" cy="26" r={r} className="dial__track" />
+        <circle cx="26" cy="26" r={r} className="dial__arc" strokeDasharray={circ} strokeDashoffset={off}
+          transform="rotate(-90 26 26)" />
       </svg>
-      <div className="rating-ring__c"><b>{value ?? '—'}</b><span>{count} rev</span></div>
+      <div className="dial__c">
+        <b>{value ?? 'New'}</b>
+        <span>{count} REV</span>
+      </div>
     </div>
   );
 }
@@ -55,36 +84,44 @@ const TAG_OPTIONS = [
   'Great view', 'Good for practice', 'Competitive', 'Easy parking', 'Smooth surface',
 ];
 
-// Sci-fi dark map style (works with classic markers, no cloud mapId needed)
-const MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#0a0e1a' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#5f7493' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#070a13' }] },
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#9fb6d6' }] },
+// Day: warm, low-saturation parchment map so the custom markers read clearly.
+const MAP_STYLE_DAY = [
+  { elementType: 'geometry', stylers: [{ color: '#E9E3D8' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8A7F72' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#F1ECE3' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#D5CCBC' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#5C554B' }] },
   { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0d2030' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#13203c' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#DFE1D4' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#F3EFE6' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#E5DDCD' }] },
   { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#1b3a5c' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#EFE7D8' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#E0D5C0' }] },
   { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#050a16' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#1f6f86' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#DCE0DA' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#A89C8C' }] },
 ];
 
-// Day mode: soft grayscale map (warm light gray, no harsh white)
-const MAP_STYLE_DAY = [
-  { elementType: 'geometry', stylers: [{ color: '#f1efe9' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#5a564c' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#fbfaf7' }] },
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#d7d3c8' }] },
+// Night: the same map, inverted into warm charcoal rather than blue-black.
+const MAP_STYLE_NIGHT = [
+  { elementType: 'geometry', stylers: [{ color: '#17140F' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8E8474' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#100E0A' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#332C22' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#B3AA9B' }] },
   { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e4e6dd' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#fbfaf7' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1B2018' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#262119' }] },
   { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#e8e5dd' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#332C22' }] },
   { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#dbdcd4' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0E0C09' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#6E6557' }] },
 ];
 
 let _loaderPromise = null;
@@ -156,33 +193,19 @@ function haversineKm(a, b) {
 }
 const fmtDist = (km) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`);
 
-function markerIcon(google, indoor, active, theme) {
-  const day = theme === 'day';
-  // outdoor = basketball orange, indoor = electric cyan/teal — matches the UI accents
-  const color = day ? (indoor ? '#0ea5c4' : '#f2542d') : (indoor ? '#1fd1ff' : '#ff6b35');
-  const inner = day ? '#ffffff' : '#0b0e14';
-  const r = active ? 8 : 6.5;
-  const glow = active ? 13 : 10;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-    <circle cx="24" cy="24" r="${glow}" fill="${color}" opacity="${day ? 0.14 : 0.2}"/>
-    <circle cx="24" cy="24" r="${r + 2}" fill="none" stroke="${color}" stroke-opacity="0.55" stroke-width="2"/>
-    <circle cx="24" cy="24" r="${r}" fill="${color}"/>
-    <circle cx="24" cy="24" r="${r * 0.45}" fill="${inner}"/>
-  </svg>`;
-  return {
-    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-    scaledSize: new google.maps.Size(48, 48),
-    anchor: new google.maps.Point(24, 24),
-  };
-}
-
-function userIcon(google, theme) {
-  const day = theme === 'day';
-  const color = day ? '#15803d' : '#34e0a1';   // your location = green (distinct from courts)
-  const inner = day ? '#ffffff' : '#0b0e14';
+// Court markers, per the handoff: 14px dot — outdoor is bone with an orange ring,
+// indoor is solid teal, selected turns solid orange inside a translucent halo.
+function markerIcon(google, indoor, active) {
+  const ORANGE = '#E1571F', TEAL = '#2C7A72', BONE = '#F6F2EA';
+  const ring = active ? ORANGE : indoor ? TEAL : ORANGE;
+  const fill = active ? ORANGE : indoor ? TEAL : BONE;
+  const halo = active
+    ? `<circle cx="20" cy="20" r="13" fill="${ORANGE}" fill-opacity="0.16"/>`
+    : '';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-    <circle cx="20" cy="20" r="12" fill="${color}" opacity="0.18"/>
-    <circle cx="20" cy="20" r="6" fill="${color}" stroke="${inner}" stroke-width="2"/>
+    ${halo}
+    <circle cx="20" cy="22" r="7" fill="rgba(32,28,23,0.24)"/>
+    <circle cx="20" cy="20" r="7" fill="${fill}" stroke="${ring}" stroke-width="2"/>
   </svg>`;
   return {
     url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
@@ -191,14 +214,55 @@ function userIcon(google, theme) {
   };
 }
 
+function userIcon(google) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+    <circle cx="20" cy="20" r="13" fill="#2C7A72" fill-opacity="0.16"/>
+    <circle cx="20" cy="20" r="6" fill="#2C7A72" stroke="#F6F2EA" stroke-width="2.5"/>
+  </svg>`;
+  return {
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+    scaledSize: new google.maps.Size(40, 40),
+    anchor: new google.maps.Point(20, 20),
+  };
+}
+
+// The selected marker's ping ring + floating name chip live in an HTML overlay so
+// they can use real CSS animation (an SVG marker icon can't).
+function makeHaloOverlay(google) {
+  class Halo extends google.maps.OverlayView {
+    constructor() {
+      super();
+      this.el = document.createElement('div');
+      this.el.className = 'mk-halo';
+      this.el.innerHTML = '<span class="mk-halo__ping"></span><span class="mk-halo__label"></span>';
+      this.label = this.el.querySelector('.mk-halo__label');
+      this.pos = null;
+    }
+    onAdd() { this.getPanes().floatPane.appendChild(this.el); }
+    onRemove() { this.el.remove(); }
+    draw() {
+      const proj = this.getProjection();
+      if (!proj || !this.pos) { this.el.style.display = 'none'; return; }
+      const p = proj.fromLatLngToDivPixel(new google.maps.LatLng(this.pos.lat, this.pos.lng));
+      this.el.style.display = '';
+      this.el.style.left = `${p.x}px`;
+      this.el.style.top = `${p.y}px`;
+    }
+    show(pos, name) { this.pos = pos; this.label.textContent = name; this.draw(); }
+    hide() { this.pos = null; this.draw(); }
+  }
+  return new Halo();
+}
+
 // ---------- Google Map ----------
-function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarget, userLoc, theme }) {
+function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarget, userLoc, theme, ctl }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
   const googleRef = useRef(null);
   const markersRef = useRef(new Map());
   const clustererRef = useRef(null);
   const userMarkerRef = useRef(null);
+  const haloRef = useRef(null);
   const addModeRef = useRef(addMode);
   const onPickRef = useRef(onPick);
   const onSelectRef = useRef(onSelectCourt);
@@ -218,9 +282,9 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
           center: SYDNEY_CENTER,
           zoom: 12,
           disableDefaultUI: true,
-          zoomControl: true,
-          styles: theme === 'day' ? MAP_STYLE_DAY : MAP_STYLE,
-          backgroundColor: theme === 'day' ? '#f1efe9' : '#0a0e1a',
+          clickableIcons: false,
+          styles: theme === 'night' ? MAP_STYLE_NIGHT : MAP_STYLE_DAY,
+          backgroundColor: theme === 'night' ? '#17140F' : '#E9E3D8',
           gestureHandling: 'greedy',
         });
         map.addListener('click', (e) => {
@@ -228,51 +292,59 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
         });
         mapRef.current = map;
         clustererRef.current = new MarkerClusterer({ map });
+        haloRef.current = makeHaloOverlay(google);
+        haloRef.current.setMap(map);
+        if (ctl) {
+          ctl.current = {
+            zoomIn: () => map.setZoom((map.getZoom() || 12) + 1),
+            zoomOut: () => map.setZoom((map.getZoom() || 12) - 1),
+          };
+        }
         setStatus('ready');
       })
       .catch((err) => setStatus(err.message === 'NO_KEY' ? 'nokey' : 'error'));
     return () => { cancelled = true; };
-  }, []);
+  }, []); // eslint-disable-line
 
-  // restyle map when theme changes
+  // restyle map when the theme changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     map.setOptions({
-      styles: theme === 'day' ? MAP_STYLE_DAY : MAP_STYLE,
-      backgroundColor: theme === 'day' ? '#f1efe9' : '#0a0e1a',
+      styles: theme === 'night' ? MAP_STYLE_NIGHT : MAP_STYLE_DAY,
+      backgroundColor: theme === 'night' ? '#17140F' : '#E9E3D8',
     });
   }, [theme, status]);
 
-  // sync court markers (managed by the clusterer)
+  // sync court markers (managed by the clusterer) + the selection ping halo
   useEffect(() => {
-    const google = googleRef.current, map = mapRef.current, clusterer = clustererRef.current;
-    if (!google || !map || !clusterer) return;
+    const google = googleRef.current, clusterer = clustererRef.current;
+    if (!google || !clusterer) return;
     const seen = new Set();
     for (const c of courts) {
       seen.add(c.id);
       const active = c.id === selectedId;
       let m = markersRef.current.get(c.id);
       if (!m) {
-        m = new google.maps.Marker({ position: { lat: c.lat, lng: c.lng }, animation: google.maps.Animation.DROP });
+        m = new google.maps.Marker({ position: { lat: c.lat, lng: c.lng } });
         m.addListener('click', () => onSelectRef.current(c));
         markersRef.current.set(c.id, m);
       }
       m.setPosition({ lat: c.lat, lng: c.lng });
-      m.setIcon(markerIcon(google, c.indoor, active, theme));
+      m.setIcon(markerIcon(google, c.indoor, active));
       m.setZIndex(active ? 999 : 1);
       m.setTitle(c.name + (c.avgRating ? ` · ★${c.avgRating}` : ''));
-      // bounce the selected marker briefly
-      if (active) {
-        m.setAnimation(google.maps.Animation.BOUNCE);
-        setTimeout(() => { try { m.setAnimation(null); } catch {} }, 1400);
-      }
     }
     for (const [id, m] of markersRef.current) {
-      if (!seen.has(id)) { markersRef.current.delete(id); }
+      if (!seen.has(id)) { m.setMap(null); markersRef.current.delete(id); }
     }
     clusterer.clearMarkers();
     clusterer.addMarkers(Array.from(markersRef.current.values()));
+    const halo = haloRef.current;
+    if (!halo) return;
+    const sel = courts.find((c) => c.id === selectedId);
+    if (sel) halo.show({ lat: sel.lat, lng: sel.lng }, sel.name);
+    else halo.hide();
   }, [courts, selectedId, status, theme]);
 
   // user-location marker
@@ -286,9 +358,9 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
     if (!userMarkerRef.current) {
       userMarkerRef.current = new google.maps.Marker({ map, title: 'My location', zIndex: 500 });
     }
-    userMarkerRef.current.setIcon(userIcon(google, theme));
+    userMarkerRef.current.setIcon(userIcon(google));
     userMarkerRef.current.setPosition(userLoc);
-  }, [userLoc, status, theme]);
+  }, [userLoc, status]);
 
   // fly to target
   useEffect(() => {
@@ -302,17 +374,17 @@ function GoogleMap({ courts, selectedId, onSelectCourt, addMode, onPick, flyTarg
     return (
       <div className="map map--fallback">
         <div className="map-fallback__card">
-          <h2 className="neon-title">⚠ Map not connected</h2>
+          <h2>Map not connected</h2>
           {status === 'nokey' ? (
             <>
               <p>A Google Maps API key is required to show the Sydney map.</p>
               <ol>
-                <li>Enable <b>Maps JavaScript API</b> and <b>Geocoding API</b> in Google Cloud</li>
+                <li>Enable <b>Maps JavaScript API</b> and <b>Places API</b> in Google Cloud</li>
                 <li>Create an API key</li>
                 <li>Add it to <code>.env</code>:<br /><code>VITE_GOOGLE_MAPS_API_KEY=your_key</code></li>
                 <li>Restart the dev server</li>
               </ol>
-              <p className="muted">The court list and all other features still work on the left.</p>
+              <p className="muted">The court index and every other feature still work on the left.</p>
             </>
           ) : (
             <p>Google Maps failed to load. Check that the API key is valid and that the required APIs and billing are enabled.</p>
@@ -335,7 +407,7 @@ function Stars({ value = 0, size = 16, onChange }) {
   const [hover, setHover] = useState(0);
   const interactive = !!onChange;
   return (
-    <span className="stars" style={{ fontSize: size }}>
+    <span className={'stars' + (interactive ? ' stars--pick' : '')} style={{ fontSize: size }}>
       {[1, 2, 3, 4, 5].map((n) => (
         <span
           key={n}
@@ -367,8 +439,8 @@ function GuestNameModal({ initial, onClose, onSave }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal auth" onClick={(e) => e.stopPropagation()}>
-        <button className="modal__x" onClick={onClose}>✕</button>
-        <h2 className="neon-title">Pick a nickname</h2>
+        <button className="modal__x" onClick={onClose}>×</button>
+        <h2 className="modal__title">Pick a nickname</h2>
         <p className="muted" style={{ margin: '0 0 12px' }}>
           No account needed — just a name to show on the courts and reviews you add. It’s saved on this device for next time.
         </p>
@@ -437,8 +509,8 @@ function AuthModal({ onClose, onAuthed, notify }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal auth" onClick={(e) => e.stopPropagation()}>
-        <button className="modal__x" onClick={onClose}>✕</button>
-        <h2 className="neon-title">{titles[mode]}</h2>
+        <button className="modal__x" onClick={onClose}>×</button>
+        <h2 className="modal__title">{titles[mode]}</h2>
 
         <form onSubmit={submit} className="form">
           <label>Email
@@ -521,7 +593,7 @@ function PlaceSearch({ onPick, notify }) {
   return (
     <div className="placesearch">
       <input value={q} onChange={onChange} onFocus={() => preds.length && setOpen(true)}
-        placeholder="🔍 Search a place on Google Maps…" autoComplete="off" />
+        placeholder="Search a place on Google Maps…" autoComplete="off" />
       {busy && <span className="placesearch__busy">…</span>}
       {open && preds.length > 0 && (
         <ul className="placesearch__list">
@@ -586,13 +658,13 @@ function CourtFormModal({ initial, pos, onClose, onSaved, onPickOnMap, notify })
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal__x" onClick={onClose}>✕</button>
-        <h2 className="neon-title">{editing ? 'Edit court' : 'Mark a new court'}</h2>
+        <button className="modal__x" onClick={onClose}>×</button>
+        <h2 className="modal__title">{editing ? 'Edit court' : 'Mark a new court'}</h2>
 
         <label className="search-label">Find the spot</label>
         <PlaceSearch onPick={handlePlace} notify={notify} />
         <div className="coords-row">
-          <span className="coords">📍 {coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : 'no location yet'}</span>
+          <span className="coords">{coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : 'NO LOCATION YET'}</span>
           {onPickOnMap && (
             <button type="button" className="linkbtn" onClick={onPickOnMap}>or drop a pin on the map</button>
           )}
@@ -635,7 +707,12 @@ const REPORT_TYPES = [
   { v: 'other', label: 'Other' },
 ];
 
-function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, onOpenProfile, requireLogin, requireIdentity, notify }) {
+const AMENITIES = [
+  ['water', 'Water'], ['toilets', 'Toilets'], ['parking', 'Parking'],
+  ['shade', 'Shade'], ['fenced', 'Fenced'],
+];
+
+function DetailBody({ courtId, user, onClose, onChanged, onEdit, onDeleted, onOpenProfile, requireLogin, requireIdentity, notify }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [review, setReview] = useState({ rating: 0, comment: '', tags: [] });
@@ -716,135 +793,150 @@ function DetailPanel({ courtId, user, onClose, onChanged, onEdit, onDeleted, onO
     } catch (err) { notify('error', err.message); }
   }
 
-  const AMENITIES = [
-    ['water', '🚰 Water'], ['toilets', '🚻 Toilets'], ['parking', '🅿️ Parking'],
-    ['shade', '🌳 Shade'], ['fenced', '🔲 Fenced'],
-  ];
-
   const c = data?.court;
   const isOwner = user && c && c.created_by === user.id;
   const canDeletePhoto = (p) => user && (p.user_id === user.id || isOwner);
 
+  if (loading || !c) {
+    return (
+      <div className="detail__body">
+        <div className="detail__top">
+          <span className="tag-neutral">Court</span>
+          <button className="detail__x" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className="skel skel--title" />
+        <div className="skel skel--row" />
+        <div className="skel skel--row" />
+        <div className="skel skel--block" />
+      </div>
+    );
+  }
+
   return (
-    <div className="detail">
-      <button className="detail__x" onClick={onClose}>✕</button>
-      {loading || !c ? (
-        <div className="detail__loading">Loading…</div>
-      ) : (
-        <>
-          <div className="detail__head">
-            <span className={'pill ' + (c.indoor ? 'pill--indoor' : 'pill--outdoor')}>{c.indoor ? 'Indoor' : 'Outdoor'}</span>
-            <h2 className="neon-title">{c.name}</h2>
-            <div className="detail__meta">
-              <RatingRing value={c.avgRating} count={c.reviewCount} />
-            </div>
-            {c.address && <p className="detail__addr">📍 {c.address}</p>}
-            <div className="owner-actions">
-              <a className="btn btn--ghost btn--sm" target="_blank" rel="noreferrer"
-                href={`https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}`}>🧭 Directions</a>
-              {isOwner && <button className="btn btn--ghost btn--sm" onClick={() => onEdit(c)}>Edit</button>}
-              {isOwner && <button className="btn btn--danger btn--sm" onClick={deleteCourt}>Delete</button>}
-            </div>
+    <div className="detail__body">
+      <div className="detail__top">
+        <span className="tag-neutral">{c.indoor ? 'Indoor' : 'Outdoor'}</span>
+        <button className="detail__x" onClick={onClose} aria-label="Close">×</button>
+      </div>
+
+      <h1 className="detail__title">{c.name}</h1>
+
+      <div className="detail__id">
+        <RatingDial value={c.avgRating} count={c.reviewCount} />
+        <div className="detail__idmeta">
+          {c.address && <div className="detail__addr"><span className="dotglyph">●</span>{c.address}</div>}
+          <div className="detail__acts">
+            <a className="ghostbtn" target="_blank" rel="noreferrer"
+              href={`https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}`}>↗ Directions</a>
+            {isOwner && <button className="ghostbtn" onClick={() => onEdit(c)}>Edit</button>}
+            {isOwner && <button className="ghostbtn ghostbtn--danger" onClick={deleteCourt}>Delete</button>}
           </div>
+        </div>
+      </div>
 
-          {c.description && <p className="detail__desc">{c.description}</p>}
+      {c.description && <p className="detail__desc">{c.description}</p>}
 
-          <div className="spec-grid">
-            <div><span>Hoops</span><b>{c.hoops}</b></div>
-            <div><span>Surface</span><b>{c.surface || '—'}</b></div>
-            <div><span>Lights</span><b>{c.lighting ? 'Yes' : 'No'}</b></div>
-            <div><span>Cost</span><b>{c.free ? 'Free' : 'Paid'}</b></div>
-          </div>
+      <div className="statgrid">
+        <div><span>Hoops</span><b>{c.hoops ?? '—'}</b></div>
+        <div><span>Surface</span><b>{c.surface || '—'}</b></div>
+        <div><span>Lights</span><b>{c.lighting ? 'Yes' : 'No'}</b></div>
+        <div><span>Cost</span><b>{c.free ? 'Free' : 'Paid'}</b></div>
+      </div>
 
-          {AMENITIES.some(([k]) => c[k]) && (
-            <div className="amenities">
-              {AMENITIES.filter(([k]) => c[k]).map(([k, label]) => (
-                <span key={k} className="chip chip--amenity">{label}</span>
-              ))}
-            </div>
-          )}
-
-          {c.topTags?.length > 0 && (
-            <div className="tagcloud">{c.topTags.map((t) => <span key={t} className="tag">#{t}</span>)}</div>
-          )}
-
-          {/* Active problem reports */}
-          <div className="section-h">
-            <h3>Issues ({data.reports?.length || 0})</h3>
-            <button className="linkbtn" onClick={() => (user ? setReportOpen((v) => !v) : requireLogin())}>
-              {reportOpen ? 'Cancel' : '⚠ Report a problem'}
-            </button>
-          </div>
-          {reportOpen && (
-            <form className="report-form" onSubmit={submitReport}>
-              <select value={report.type} onChange={(e) => setReport((r) => ({ ...r, type: e.target.value }))}>
-                {REPORT_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
-              </select>
-              <input placeholder="Optional details…" value={report.note}
-                onChange={(e) => setReport((r) => ({ ...r, note: e.target.value }))} />
-              <button className="btn btn--primary btn--sm">Submit</button>
-            </form>
-          )}
-          {data.reports?.length > 0 ? (
-            <ul className="reports">
-              {data.reports.map((r) => (
-                <li key={r.id}>⚠ <b>{REPORT_TYPES.find((t) => t.v === r.type)?.label || r.type}</b>
-                  {r.note ? ` — ${r.note}` : ''} <span className="muted">· {r.username}</span></li>
-              ))}
-            </ul>
-          ) : <p className="empty">No reported issues. 👍</p>}
-
-          <div className="section-h">
-            <h3>Photos ({data.photos.length})</h3>
-            <label className="upload-btn">+ Upload<input type="file" accept="image/*" hidden onChange={uploadPhoto} /></label>
-          </div>
-          {data.photos.length > 0 ? (
-            <div className="photos">
-              {data.photos.map((p) => (
-                <div key={p.id} className="photo">
-                  <img src={assetUrl(p.url)} alt="Court" loading="lazy" onClick={() => setLightbox(assetUrl(p.url))} />
-                  {canDeletePhoto(p) && <button className="photo__del" title="Delete" onClick={() => deletePhoto(p.id)}>✕</button>}
-                </div>
-              ))}
-            </div>
-          ) : <p className="empty">No photos yet — be the first to upload one.</p>}
-
-          <div className="section-h">
-            <h3>My review</h3>
-            {hasMine && <button className="linkbtn linkbtn--danger" onClick={deleteMyReview}>Delete my review</button>}
-          </div>
-          <form className="review-form" onSubmit={submitReview}>
-            <Stars value={review.rating} size={26} onChange={(n) => setReview((r) => ({ ...r, rating: n }))} />
-            <div className="tagpick">
-              {TAG_OPTIONS.map((t) => (
-                <button type="button" key={t} className={'tag-pick ' + (review.tags.includes(t) ? 'on' : '')} onClick={() => toggleTag(t)}>{t}</button>
-              ))}
-            </div>
-            <textarea rows={3} placeholder="Tell others what this court is like…" value={review.comment} onChange={(e) => setReview((r) => ({ ...r, comment: e.target.value }))} />
-            <button className="btn btn--primary" disabled={busy}>{busy ? 'Submitting…' : hasMine ? 'Update review' : 'Submit review'}</button>
-          </form>
-
-          <div className="section-h"><h3>All reviews ({data.reviews.length})</h3></div>
-          {data.reviews.length > 0 ? (
-            <ul className="reviews">
-              {data.reviews.map((r) => (
-                <li key={r.id} className="review">
-                  <div className="review__top">
-                    <b className="userlink" onClick={() => onOpenProfile?.(r.user_id)}>{r.username}{user && r.user_id === user.id ? ' (me)' : ''}</b>
-                    <Stars value={r.rating} size={13} />
-                  </div>
-                  {r.tags?.length > 0 && <div className="review__tags">{r.tags.map((t) => <span key={t}>#{t}</span>)}</div>}
-                  {r.comment && <p>{r.comment}</p>}
-                </li>
-              ))}
-            </ul>
-          ) : <p className="empty">No reviews yet — be the first.</p>}
-        </>
+      {AMENITIES.some(([k]) => c[k]) && (
+        <div className="chiprow">
+          {AMENITIES.filter(([k]) => c[k]).map(([k, label]) => (
+            <span key={k} className="chip-neutral">{label}</span>
+          ))}
+        </div>
       )}
+
+      {c.topTags?.length > 0 && (
+        <div className="chiprow">{c.topTags.map((t) => <span key={t} className="chip-mono">#{t}</span>)}</div>
+      )}
+
+      {/* Active problem reports */}
+      <div className="section-h">
+        <h3>Issues ({data.reports?.length || 0})</h3>
+        <button className="linkbtn" onClick={() => (user ? setReportOpen((v) => !v) : requireLogin())}>
+          {reportOpen ? 'Cancel' : '⚠ Report a problem'}
+        </button>
+      </div>
+      {reportOpen && (
+        <form className="report-form" onSubmit={submitReport}>
+          <select value={report.type} onChange={(e) => setReport((r) => ({ ...r, type: e.target.value }))}>
+            {REPORT_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+          </select>
+          <input placeholder="Optional details…" value={report.note}
+            onChange={(e) => setReport((r) => ({ ...r, note: e.target.value }))} />
+          <button className="btn btn--ink btn--sm">Submit</button>
+        </form>
+      )}
+      {data.reports?.length > 0 ? (
+        <ul className="reports">
+          {data.reports.map((r) => (
+            <li key={r.id}>⚠ <b>{REPORT_TYPES.find((t) => t.v === r.type)?.label || r.type}</b>
+              {r.note ? ` — ${r.note}` : ''} <span className="muted">· {r.username}</span></li>
+          ))}
+        </ul>
+      ) : <p className="emptycard">No reported issues. 👍</p>}
+
+      <div className="section-h">
+        <h3>Photos ({data.photos.length})</h3>
+        <label className="inkbtn">+ Upload<input type="file" accept="image/*" hidden onChange={uploadPhoto} /></label>
+      </div>
+      {data.photos.length > 0 ? (
+        <div className="photos">
+          {data.photos.map((p) => (
+            <div key={p.id} className="photo">
+              <img src={assetUrl(p.url)} alt="Court" loading="lazy" onClick={() => setLightbox(assetUrl(p.url))} />
+              {canDeletePhoto(p) && <button className="photo__del" title="Delete" onClick={() => deletePhoto(p.id)}>×</button>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <label className="dropzone">
+          <input type="file" accept="image/*" hidden onChange={uploadPhoto} />
+          <span className="dropzone__k">Drop court photo</span>
+          <span className="dropzone__s">Be the first to upload one</span>
+        </label>
+      )}
+
+      <div className="section-h">
+        <h3>My review</h3>
+        {hasMine && <button className="linkbtn linkbtn--danger" onClick={deleteMyReview}>Delete my review</button>}
+      </div>
+      <form className="review-form" onSubmit={submitReview}>
+        <Stars value={review.rating} size={26} onChange={(n) => setReview((r) => ({ ...r, rating: n }))} />
+        <div className="tagpick">
+          {TAG_OPTIONS.map((t) => (
+            <button type="button" key={t} className={'tag-pick ' + (review.tags.includes(t) ? 'on' : '')} onClick={() => toggleTag(t)}>{t}</button>
+          ))}
+        </div>
+        <textarea rows={3} placeholder="Tell others what this court is like…" value={review.comment} onChange={(e) => setReview((r) => ({ ...r, comment: e.target.value }))} />
+        <button className="btn btn--ink btn--block" disabled={busy}>{busy ? 'Submitting…' : hasMine ? 'Update review' : 'Submit review'}</button>
+      </form>
+
+      <div className="section-h"><h3>All reviews ({data.reviews.length})</h3></div>
+      {data.reviews.length > 0 ? (
+        <ul className="reviews">
+          {data.reviews.map((r) => (
+            <li key={r.id} className="review">
+              <div className="review__top">
+                <b className="userlink" onClick={() => onOpenProfile?.(r.user_id)}>{r.username}{user && r.user_id === user.id ? ' (me)' : ''}</b>
+                <Stars value={r.rating} size={13} />
+              </div>
+              {r.tags?.length > 0 && <div className="review__tags">{r.tags.map((t) => <span key={t}>#{t}</span>)}</div>}
+              {r.comment && <p>{r.comment}</p>}
+            </li>
+          ))}
+        </ul>
+      ) : <p className="empty-italic">No reviews yet — be the first.</p>}
+
       {lightbox && (
         <div className="lightbox" onClick={() => setLightbox(null)}>
           <img src={lightbox} alt="Court" />
-          <button className="lightbox__x" onClick={() => setLightbox(null)}>✕</button>
+          <button className="lightbox__x" onClick={() => setLightbox(null)}>×</button>
         </div>
       )}
     </div>
@@ -875,12 +967,12 @@ function ProfileModal({ userId, currentUser, onClose, onOpenCourt, notify }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal__x" onClick={onClose}>✕</button>
+        <button className="modal__x" onClick={onClose}>×</button>
         {!data ? <div className="detail__loading">Loading…</div> : (
           <>
-            <h2 className="neon-title">{data.user.username}</h2>
+            <h2 className="modal__title">{data.user.username}</h2>
             {data.badges?.length > 0 && (
-              <div className="tagcloud">{data.badges.map((b) => <span key={b} className="chip chip--amenity">{b}</span>)}</div>
+              <div className="chiprow">{data.badges.map((b) => <span key={b} className="chip-neutral">{b}</span>)}</div>
             )}
             <div className="profile-stats">
               <div><b>{data.counts.courts}</b><span>Courts</span></div>
@@ -898,10 +990,10 @@ function ProfileModal({ userId, currentUser, onClose, onOpenCourt, notify }) {
             {data.courts.length > 0 ? (
               <ul className="mini-list">
                 {data.courts.map((c) => (
-                  <li key={c.id} onClick={() => onOpenCourt?.(c)}>{c.indoor ? '🏠' : '🏀'} {c.name}</li>
+                  <li key={c.id} onClick={() => onOpenCourt?.(c)}>{c.name}</li>
                 ))}
               </ul>
-            ) : <p className="empty">No courts yet.</p>}
+            ) : <p className="emptycard">No courts yet.</p>}
             <div className="section-h"><h3>Recent reviews ({data.reviews.length})</h3></div>
             {data.reviews.length > 0 ? (
               <ul className="reviews">
@@ -912,7 +1004,7 @@ function ProfileModal({ userId, currentUser, onClose, onOpenCourt, notify }) {
                   </li>
                 ))}
               </ul>
-            ) : <p className="empty">No reviews yet.</p>}
+            ) : <p className="emptycard">No reviews yet.</p>}
           </>
         )}
       </div>
@@ -929,17 +1021,17 @@ function LeaderboardModal({ onClose, onOpenProfile, notify }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal__x" onClick={onClose}>✕</button>
-        <h2 className="neon-title">🏆 Top contributors</h2>
+        <button className="modal__x" onClick={onClose}>×</button>
+        <h2 className="modal__title">Top contributors</h2>
         {!rows ? <div className="detail__loading">Loading…</div> : rows.length === 0 ? (
-          <p className="empty">No contributors yet — be the first to add a court!</p>
+          <p className="emptycard">No contributors yet — be the first to add a court!</p>
         ) : (
           <ol className="leaderboard">
             {rows.map((u, i) => (
               <li key={u.id}>
-                <span className="lb-rank">{i + 1}</span>
+                <span className="lb-rank">{String(i + 1).padStart(2, '0')}</span>
                 <span className="lb-name userlink" onClick={() => onOpenProfile?.(u.id)}>{u.username}</span>
-                <span className="lb-meta">{u.courts}🏀 · {u.reviews}✍️ · {u.photos}📸</span>
+                <span className="lb-meta">{u.courts} courts · {u.reviews} reviews · {u.photos} photos</span>
               </li>
             ))}
           </ol>
@@ -949,8 +1041,8 @@ function LeaderboardModal({ onClose, onOpenProfile, notify }) {
   );
 }
 
-// ---------- Sidebar ----------
-function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc }) {
+// ---------- Index panel (left) ----------
+function IndexPanel({ courts, filters, setFilters, selectedId, onSelect, userLoc, onPeek, expanded }) {
   const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
   const list = useMemo(() => {
     let arr = (courts || []).filter((c) => {
@@ -971,20 +1063,29 @@ function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc })
 
   // tags present across courts, for quick-filter chips
   const allTags = useMemo(() => {
-    const set = new Set();
-    for (const c of courts || []) for (const t of c.topTags || []) set.add(t);
-    return Array.from(set).slice(0, 12);
+    const seen = new Set();
+    for (const c of courts || []) for (const t of c.topTags || []) seen.add(t);
+    return Array.from(seen).slice(0, 6);
   }, [courts]);
 
   return (
-    <aside className="sidebar">
-      <div className="brand">
-        <span className="brand__mark">◎</span>
-        <div><h1>Ball Radar</h1><p>Sydney basketball court radar</p></div>
+    <aside className={'index' + (expanded ? ' is-open' : '')}>
+      <button className="index__grab" onClick={onPeek} aria-label="Expand court list" />
+
+      <div className="index__brand">
+        <BallMark />
+        <div>
+          <div className="wordmark">Ball Radar</div>
+          <div className="mono-sub">Sydney basketball court radar</div>
+        </div>
       </div>
 
-      <div className="filters">
-        <input className="search" placeholder="Search courts / address…" value={filters.q} onChange={(e) => set('q', e.target.value)} />
+      <div className="index__controls">
+        <div className="searchbox">
+          <span className="searchbox__ico" aria-hidden="true">⌕</span>
+          <input placeholder="Search courts / address…" value={filters.q} onChange={(e) => set('q', e.target.value)} />
+        </div>
+
         <div className="seg">
           {['all', 'outdoor', 'indoor'].map((t) => (
             <button key={t} className={filters.type === t ? 'on' : ''} onClick={() => set('type', t)}>
@@ -992,12 +1093,14 @@ function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc })
             </button>
           ))}
         </div>
+
         <div className="toggles">
-          <label className="chk"><input type="checkbox" checked={filters.free} onChange={(e) => set('free', e.target.checked)} />Free only</label>
-          <label className="chk"><input type="checkbox" checked={filters.lighting} onChange={(e) => set('lighting', e.target.checked)} />Has lights</label>
+          <label className="chk"><input type="checkbox" checked={filters.free} onChange={(e) => set('free', e.target.checked)} /><span className="chk__box" />Free only</label>
+          <label className="chk"><input type="checkbox" checked={filters.lighting} onChange={(e) => set('lighting', e.target.checked)} /><span className="chk__box" />Has lights</label>
         </div>
+
         <div className="sortrow">
-          <span>Sort</span>
+          <span className="mono-label">Sort</span>
           <select value={filters.sort} onChange={(e) => set('sort', e.target.value)}>
             <option value="default">Default</option>
             <option value="rating">Top rated</option>
@@ -1005,41 +1108,48 @@ function Sidebar({ courts, filters, setFilters, selectedId, onSelect, userLoc })
             {userLoc && <option value="dist">Nearest</option>}
           </select>
         </div>
+
         {allTags.length > 0 && (
           <div className="tagfilter">
             {allTags.map((t) => (
-              <button key={t} className={'tag-pick ' + (filters.tag === t ? 'on' : '')}
+              <button key={t} className={'chip-mono chip-mono--btn ' + (filters.tag === t ? 'on' : '')}
                 onClick={() => set('tag', filters.tag === t ? null : t)}>#{t}</button>
             ))}
           </div>
         )}
       </div>
 
-      <div className="count">{list.length} / <CountUp value={courts.length} /> courts</div>
+      <div className="index__count">
+        <span className="index__count-n">{list.length} / <CountUp value={courts.length} /></span> COURTS
+        <span className="rule" />
+      </div>
 
-      <ul className="court-list">
+      <ul className="courtlist">
         {list.map((c, i) => (
-          <li key={c.id} className={'court-card reveal ' + (c.id === selectedId ? 'on' : '')}
-            style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }} onClick={() => onSelect(c)}>
-            <div className="court-card__top">
-              <b>{c.name}</b>
-              <span className={'pill ' + (c.indoor ? 'pill--indoor' : 'pill--outdoor')}>{c.indoor ? 'Indoor' : 'Outdoor'}</span>
+          <li key={c.id} className={'courtcard ' + (c.id === selectedId ? 'on' : '')}
+            style={{ animationDelay: `${Math.min(i, 10) * 32}ms` }}
+            onClick={() => onSelect(c)}>
+            <div className="courtcard__row">
+              <div className="courtcard__name">{c.name}</div>
+              <span className={'typetag ' + (c.indoor ? 'typetag--indoor' : 'typetag--outdoor')}>{c.indoor ? 'Indoor' : 'Outdoor'}</span>
             </div>
-            <div className="court-card__meta">
-              <Stars value={Math.round(c.avgRating || 0)} size={13} />
-              <span>{c.avgRating ?? 'New'}</span>
-              <span className="dot">·</span>
-              <span>{c.reviewCount} reviews</span>
-              {c._dist != null && <span className="chip chip--dist">{fmtDist(c._dist)}</span>}
-              {c.lighting && <span className="chip">Lights</span>}
-              {c.free && <span className="chip">Free</span>}
+            <div className="courtcard__meta">
+              <span className={'courtcard__rating' + (c.reviewCount ? ' has' : '')}>
+                {c.reviewCount ? `${c.avgRating} ★` : 'New'}
+              </span>
+              <span className="sep">·</span>
+              <span>{c.reviewCount === 1 ? '1 review' : `${c.reviewCount} reviews`}</span>
+              <span className="grow" />
+              {c._dist != null && <span className="badge badge--dist">{fmtDist(c._dist)}</span>}
+              {c.lighting && <span className="badge">Lights</span>}
+              {c.free && <span className="badge">Free</span>}
             </div>
           </li>
         ))}
-        {list.length === 0 && <li className="empty">No courts match your filters.</li>}
+        {list.length === 0 && <li className="courtlist__empty">No courts match your filters.</li>}
       </ul>
 
-      <a className="sidebar-about" href="/about">ℹ️ About the developer</a>
+      <a className="index__foot" href="/about">ⓘ About the developer</a>
     </aside>
   );
 }
@@ -1049,11 +1159,11 @@ function CommandPalette({ courts, onClose, run }) {
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
   const actions = [
-    { id: 'mark', icon: '＋', label: 'Mark a court' },
-    { id: 'nearby', icon: '📍', label: 'Find courts near me' },
-    { id: 'leaders', icon: '🏆', label: 'Leaderboard' },
-    { id: 'theme', icon: '🌓', label: 'Toggle day / night' },
-    { id: 'about', icon: 'ℹ️', label: 'About the developer' },
+    { id: 'mark', icon: '+', label: 'Mark a court' },
+    { id: 'nearby', icon: '◎', label: 'Find courts near me' },
+    { id: 'leaders', icon: '▲', label: 'Leaderboard' },
+    { id: 'theme', icon: '☾', label: 'Toggle day / night' },
+    { id: 'about', icon: 'ⓘ', label: 'About the developer' },
   ];
   const ql = q.trim().toLowerCase();
   const hits = ql
@@ -1081,7 +1191,7 @@ function CommandPalette({ courts, onClose, run }) {
           {items.map((it, i) => (
             <li key={it.id} className={'cmdk-item ' + (i === idx ? 'on' : '')}
               onMouseEnter={() => setIdx(i)} onMouseDown={() => run(it)}>
-              <span className="cmdk-ico">{it.type === 'court' ? '🏀' : it.icon}</span>
+              <span className="cmdk-ico">{it.type === 'court' ? '◍' : it.icon}</span>
               <span className="cmdk-label">{it.label}{it.sub ? <em>{it.sub}</em> : null}</span>
             </li>
           ))}
@@ -1092,11 +1202,29 @@ function CommandPalette({ courts, onClose, run }) {
   );
 }
 
+// ---------- Intro loader ----------
+function IntroLoader({ count, fading }) {
+  return (
+    <div className={'intro' + (fading ? ' is-gone' : '')} aria-hidden="true">
+      <div className="intro__radar">
+        <span className="intro__ring" />
+        <span className="intro__sweep" />
+        <span className="intro__core">●</span>
+      </div>
+      <div className="intro__text">
+        <div className="intro__name">Ball Radar</div>
+        <div className="mono-sub">Scanning Sydney · {count} courts</div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- App ----------
 export default function App() {
   const [user, setUser] = useState(getUser());
   const [courts, setCourts] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [flyTarget, setFlyTarget] = useState(null);
   const [filters, setFilters] = useState({ q: '', type: 'all', free: false, lighting: false, sort: 'default', tag: null });
   const [authOpen, setAuthOpen] = useState(false);
@@ -1113,16 +1241,20 @@ export default function App() {
   const [guestModalOpen, setGuestModalOpen] = useState(false);
   const pendingActionRef = useRef(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [radar, setRadar] = useState(false);
-  const [navOpen, setNavOpen] = useState(false);
-  const [splash, setSplash] = useState(
+  const [sheetOpen, setSheetOpen] = useState(false); // mobile: index panel expanded
+  const mapCtl = useRef({ zoomIn() {}, zoomOut() {} });
+
+  // intro loader: fades at 1.5s, unmounts at 2.2s (skipped once per session)
+  const [intro, setIntro] = useState(
     () => !sessionStorage.getItem('ballradar_splashed') && !reduceMotion()
   );
+  const [introFading, setIntroFading] = useState(false);
   useEffect(() => {
-    if (!splash) return;
+    if (!intro) return;
     sessionStorage.setItem('ballradar_splashed', '1');
-    const t = setTimeout(() => setSplash(false), 1300);
-    return () => clearTimeout(t);
+    const a = setTimeout(() => setIntroFading(true), 1500);
+    const b = setTimeout(() => setIntro(false), 2200);
+    return () => { clearTimeout(a); clearTimeout(b); };
   }, []); // eslint-disable-line
 
   // ⌘K / Ctrl+K opens the command palette
@@ -1166,8 +1298,9 @@ export default function App() {
 
   const selectCourt = useCallback((c) => {
     setSelected(c);
+    setDetailOpen(true);
     setFlyTarget({ lat: c.lat, lng: c.lng, _t: Date.now() });
-    setNavOpen(false); // close the mobile drawer on selection
+    setSheetOpen(false); // collapse the mobile sheet on selection
   }, []);
 
   function toggleTheme() {
@@ -1206,12 +1339,16 @@ export default function App() {
         setUserLoc(loc);
         setFlyTarget({ ...loc, _t: Date.now() });
         setFilters((f) => ({ ...f, sort: 'dist' }));
-        setRadar(true); setTimeout(() => setRadar(false), 1900); // radar sweep
         notify('success', 'Located — sorted by distance');
       },
       () => notify('error', 'Location failed or denied'),
       { enableHighAccuracy: true, timeout: 8000 }
     );
+  }
+
+  function markCourt() {
+    if (addMode) { setAddMode(false); return; }
+    ensureIdentity(() => { setAddPos(null); setAddingCourt(true); });
   }
 
   function runCommand(it) {
@@ -1225,65 +1362,84 @@ export default function App() {
   }
 
   return (
-    <div className={'app ' + (addMode ? 'is-picking' : '') + (navOpen ? ' nav-open' : '')}>
-      <Sidebar
-        courts={courts} filters={filters} setFilters={setFilters}
-        selectedId={selected?.id} onSelect={selectCourt} userLoc={userLoc}
+    <div className={'stage' + (addMode ? ' is-picking' : '') + (detailOpen ? ' has-detail' : '')}>
+      <GoogleMap
+        courts={courts} selectedId={detailOpen ? selected?.id : null} onSelectCourt={selectCourt}
+        addMode={addMode} onPick={handlePick} flyTarget={flyTarget} userLoc={userLoc} theme={theme}
+        ctl={mapCtl}
       />
 
-      <main className="map-wrap">
-        <div className="topbar">
-          <button className="btn btn--ghost nav-toggle" aria-label="Menu" onClick={() => setNavOpen((v) => !v)}>☰</button>
-          <button
-            className={'btn btn--ghost ' + (addMode ? 'btn--armed' : '')}
-            onClick={() => {
-              if (addMode) { setAddMode(false); return; }
-              ensureIdentity(() => { setAddPos(null); setAddingCourt(true); });
-            }}>
-            {addMode ? 'Click the map · Cancel' : '＋ Mark court'}
+      {/* ---- map chrome ---- */}
+      <div className="readout">
+        <div>{SYDNEY_CENTER.lat.toFixed(4)}°&nbsp;&nbsp;{SYDNEY_CENTER.lng.toFixed(4)}°</div>
+        <div className="readout__live">● LIVE · {courts.length} COURTS</div>
+      </div>
+
+      <div className="zoomctl">
+        <button onClick={() => mapCtl.current.zoomIn()} aria-label="Zoom in">+</button>
+        <button onClick={() => mapCtl.current.zoomOut()} aria-label="Zoom out">−</button>
+      </div>
+
+      {/* ---- top command bar ---- */}
+      <div className="cmdbar">
+        <div className="cmdbar__left">
+          <button className="pill pill--icon cmdbar__menu" aria-label="Court list" onClick={() => setSheetOpen((v) => !v)}>☰</button>
+          <button className={'pill ' + (addMode ? 'is-armed' : '')} onClick={markCourt} aria-label="Mark court">
+            <span className="pill__plus">+</span>
+            <span className="pill__label">{addMode ? 'Click the map · Cancel' : 'Mark court'}</span>
           </button>
-          <button className="btn btn--ghost" onClick={locateMe}>📍 Nearby</button>
-          <button className="btn btn--ghost topbar-hide" onClick={() => setPaletteOpen(true)}>🔍 Search <kbd>⌘K</kbd></button>
-          <button className="btn btn--ghost topbar-hide" onClick={() => setLeaderboardOpen(true)}>🏆 Leaders</button>
-          <button className="btn btn--ghost" title="Toggle day / night" onClick={toggleTheme}>
-            {theme === 'day' ? '🌙' : '☀️'}
+          <button className="pill" onClick={locateMe}>Nearby</button>
+          <button className="pill cmdbar__wide" onClick={() => setPaletteOpen(true)}>
+            Search <kbd>⌘K</kbd>
           </button>
-          <div className="spacer" />
+          <button className="pill cmdbar__wide" onClick={() => setLeaderboardOpen(true)}>Leaders</button>
+          <button className="pill pill--icon" title="Toggle day / night" onClick={toggleTheme}>
+            {theme === 'day' ? '☾' : '☀'}
+          </button>
+        </div>
+
+        <div className="cmdbar__right">
           {user ? (
-            <div className="user-chip">
-              <span className="userlink" onClick={() => setProfileUserId(user.id)}>👤 {user.username}</span>
+            <div className="userchip">
+              <span className="userlink" onClick={() => setProfileUserId(user.id)}>{user.username}</span>
               <button className="linkbtn" onClick={logout}>Log out</button>
             </div>
           ) : guestName ? (
-            <div className="user-chip">
-              <span className="userlink" onClick={() => setGuestModalOpen(true)} title="Change nickname">🙂 {guestName}</span>
+            <div className="userchip">
+              <span className="userlink" onClick={() => setGuestModalOpen(true)} title="Change nickname">{guestName}</span>
               <button className="linkbtn" onClick={() => setAuthOpen(true)}>Log in</button>
             </div>
           ) : (
-            <button className="btn btn--primary" onClick={() => setAuthOpen(true)}>Log in / Sign up</button>
+            <button className="btn btn--primary" onClick={() => setAuthOpen(true)}>
+              Log in<span className="btn__more"> / Sign up</span>
+            </button>
           )}
         </div>
+      </div>
 
-        <GoogleMap
-          courts={courts} selectedId={selected?.id} onSelectCourt={selectCourt}
-          addMode={addMode} onPick={handlePick} flyTarget={flyTarget} userLoc={userLoc} theme={theme}
-        />
+      <IndexPanel
+        courts={courts} filters={filters} setFilters={setFilters}
+        selectedId={detailOpen ? selected?.id : null} onSelect={selectCourt} userLoc={userLoc}
+        expanded={sheetOpen} onPeek={() => setSheetOpen((v) => !v)}
+      />
 
-        {addMode && <div className="pick-hint">Click anywhere on the map to mark a new court (or locate by address in the dialog)</div>}
-        {radar && <div className="radar" aria-hidden="true"><span></span><span></span><span></span></div>}
-      </main>
+      {/* Always mounted so it can slide out with its content intact. */}
+      <section className={'detail' + (detailOpen ? ' is-open' : '')} aria-hidden={!detailOpen}>
+        {selected && (
+          <DetailBody
+            key={selected.id}
+            courtId={selected.id} user={user}
+            onClose={() => setDetailOpen(false)}
+            onChanged={loadCourts}
+            onEdit={(c) => setEditCourt(c)}
+            onDeleted={() => { setDetailOpen(false); setSelected(null); loadCourts(); }}
+            onOpenProfile={(id) => setProfileUserId(id)}
+            requireLogin={requireLogin} requireIdentity={ensureIdentity} notify={notify}
+          />
+        )}
+      </section>
 
-      {selected && (
-        <DetailPanel
-          courtId={selected.id} user={user}
-          onClose={() => setSelected(null)}
-          onChanged={loadCourts}
-          onEdit={(c) => setEditCourt(c)}
-          onDeleted={() => { setSelected(null); loadCourts(); }}
-          onOpenProfile={(id) => setProfileUserId(id)}
-          requireLogin={requireLogin} requireIdentity={ensureIdentity} notify={notify}
-        />
-      )}
+      {addMode && <div className="pick-hint">Click anywhere on the map to mark a new court</div>}
 
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} onAuthed={setUser} notify={notify} />}
 
@@ -1299,15 +1455,9 @@ export default function App() {
         <CommandPalette courts={courts} onClose={() => setPaletteOpen(false)} run={runCommand} />
       )}
 
-      {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
+      {sheetOpen && <div className="sheet-backdrop" onClick={() => setSheetOpen(false)} />}
 
-      {splash && (
-        <div className="splash" aria-hidden="true">
-          <div className="splash-radar"><span></span><span></span><span></span></div>
-          <div className="splash-ball">🏀</div>
-          <div className="splash-name neon-title">BALL RADAR</div>
-        </div>
-      )}
+      {intro && <IntroLoader count={courts.length || 317} fading={introFading} />}
 
       {addingCourt && (
         <CourtFormModal
