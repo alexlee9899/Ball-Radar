@@ -1062,9 +1062,11 @@ function IndexPanel({ courts, filters, setFilters, selectedId, onSelect, userLoc
       return true;
     });
     if (userLoc) arr = arr.map((c) => ({ ...c, _dist: haversineKm(userLoc, { lat: c.lat, lng: c.lng }) }));
-    if (filters.sort === 'dist' && userLoc) arr.sort((a, b) => a._dist - b._dist);
-    else if (filters.sort === 'rating') arr.sort((a, b) => (b.avgRating || 0) - (a.avgRating || 0));
-    else if (filters.sort === 'newest') arr.sort((a, b) => b.id - a.id);
+    if (filters.sort === 'dist' && userLoc) arr = [...arr].sort((a, b) => a._dist - b._dist);
+    else if (filters.sort === 'rating') arr = [...arr].sort((a, b) => (b.avgRating || 0) - (a.avgRating || 0));
+    else if (filters.sort === 'reviews') arr = [...arr].sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0));
+    else if (filters.sort === 'name') arr = [...arr].sort((a, b) => a.name.localeCompare(b.name));
+    else if (filters.sort === 'newest') arr = [...arr].sort((a, b) => b.id - a.id);
     return arr;
   }, [courts, filters, userLoc]);
 
@@ -1111,6 +1113,8 @@ function IndexPanel({ courts, filters, setFilters, selectedId, onSelect, userLoc
           <select value={filters.sort} onChange={(e) => set('sort', e.target.value)}>
             <option value="default">Default</option>
             <option value="rating">Top rated</option>
+            <option value="reviews">Most reviewed</option>
+            <option value="name">Name A–Z</option>
             <option value="newest">Newest</option>
             {userLoc && <option value="dist">Nearest</option>}
           </select>
@@ -1135,7 +1139,9 @@ function IndexPanel({ courts, filters, setFilters, selectedId, onSelect, userLoc
         {list.map((c, i) => (
           <li key={c.id} className={'courtcard ' + (c.id === selectedId ? 'on' : '')}
             style={{ animationDelay: `${Math.min(i, 10) * 32}ms` }}
-            onClick={() => onSelect(c)}>
+            role="button" tabIndex={0} aria-pressed={c.id === selectedId}
+            onClick={() => onSelect(c)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(c); } }}>
             <div className="courtcard__row">
               <div className="courtcard__name">{c.name}</div>
               <span className={'typetag ' + (c.indoor ? 'typetag--indoor' : 'typetag--outdoor')}>{c.indoor ? 'Indoor' : 'Outdoor'}</span>
@@ -1268,6 +1274,7 @@ export default function App() {
   useEffect(() => {
     const h = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen((v) => !v); }
+      else if (e.key === 'Escape') { setDetailOpen(false); setAddMode(false); }
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
